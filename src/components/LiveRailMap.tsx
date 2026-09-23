@@ -9,7 +9,7 @@ import {
   InlineRailLandmark,
   RailLineSegment,
 } from '../data/railNetwork';
-import { toBengaliNumber, calculateDistanceKm, getTrackSegmentOfLength } from '../utils/geoUtils';
+import { toBengaliNumber, calculateDistanceKm, getTrackSegmentOfLength, getTrailingWagonPositions } from '../utils/geoUtils';
 import { UpcomingStopsTimeline } from './UpcomingStopsTimeline';
 import { UserProximityCard } from './UserProximityCard';
 import {
@@ -108,11 +108,28 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
 
   const [mapProvider, setMapProvider] = useState<MapProvider>('google-roadmap');
   // Default showOpenRailwayOverlay to true so accurate railway tracks from OpenRailwayMap render directly on top of Google Maps
-  const [showOpenRailwayOverlay, setShowOpenRailwayOverlay] = useState(true);
+  const [showOpenRailwayOverlay, setShowOpenRailwayOverlay] = useState<boolean>(
+    () => effectiveSettings.showRailwayOverlay ?? true
+  );
+
+  useEffect(() => {
+    if (effectiveSettings.showRailwayOverlay !== undefined) {
+      setShowOpenRailwayOverlay(effectiveSettings.showRailwayOverlay);
+    }
+  }, [effectiveSettings.showRailwayOverlay]);
+
+  const handleToggleRailwayOverlay = () => {
+    const nextVal = !showOpenRailwayOverlay;
+    setShowOpenRailwayOverlay(nextVal);
+    if (onUpdateSettings && settings) {
+      onUpdateSettings({ ...settings, showRailwayOverlay: nextVal });
+    }
+  };
   const [railMappingMode, setRailMappingMode] = useState<'geo' | 'schematic'>('geo');
   const [highlightInLinePlaces, setHighlightInLinePlaces] = useState(true);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [selectedLandmark, setSelectedLandmark] = useState<InlineRailLandmark | null>(null);
+  const [mapZoom, setMapZoom] = useState<number>(8);
 
   const [showLegend, setShowLegend] = useState(false);
   const [googleTrafficMode, setGoogleTrafficMode] = useState(true);
@@ -191,6 +208,11 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     // Zoom control at bottom right
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+    map.on('zoomend', () => {
+      setMapZoom(map.getZoom());
+    });
+    setMapZoom(map.getZoom());
+
     // Initialize layer groups
     routesLayerRef.current = L.layerGroup().addTo(map);
     trafficCongestionLayerRef.current = L.layerGroup().addTo(map);
@@ -248,7 +270,8 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           {
             maxZoom: 19,
             attribution: '&copy; OpenRailwayMap',
-            opacity: 0.85,
+            opacity: 1.0,
+            zIndex: 10,
           }
         );
       }
@@ -285,75 +308,139 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
       });
 
       if (railMappingMode === 'geo') {
-        // High-Accuracy Geo-Alignment: Realistic double-line ballast trackbed + core rail line
-        const ballastBed = L.polyline(segment.coordinates, {
-          color: isLight ? '#334155' : '#0f172a',
-          weight: 5.5,
-          opacity: 0.55,
-          lineCap: 'round',
-          lineJoin: 'round',
-        });
-        ballastBed.addTo(routesLayerRef.current!);
-
-        // Core precision railway track
-        const trackColor =
-          segment.zone === 'padma'
-            ? isLight
-              ? '#7c3aed'
-              : '#a78bfa'
-            : segment.zone === 'west'
-            ? isLight
-              ? '#0d9488'
-              : '#2dd4bf'
-            : isLight
-            ? '#0284c7'
-            : '#38bdf8';
-
-        const trackLine = L.polyline(segment.coordinates, {
-          color: trackColor,
-          weight: 3,
-          opacity: 0.9,
-          lineCap: 'round',
-          lineJoin: 'round',
-        });
-
-        // Interactive Click on Track Line -> Detect Segment & Active Trains
-        trackLine.on('click', (e) => {
-          setDetectedSegment({
-            segment,
-            activeTrains: activeOnSegment,
-            latlng: [e.latlng.lat, e.latlng.lng],
+        if (showOpenRailwayOverlay) {
+          // GIS TRACK DEFAULT MODE:
+          // OpenRailwayMap provides the 100% geographically accurate physical railway lines directly on the map.
+          // To avoid drawing conflicting, coarse, or out-of-track vector lines over the real rails,
+          // the GIS overlay serves as the authentic physical trackbed.
+          // We provide an interactive hit-line (transparent with ample tap area) for track detection & tooltips.
+          const hitLine = L.polyline(segment.coordinates, {
+            color: 'transparent',
+            weight: 16,
+            opacity: 0,
+            lineCap: 'round',
+            lineJoin: 'round',
           });
-        });
 
-        const gaugeLabel =
-          segment.gauge === 'BROAD_GAUGE'
-            ? 'ব্রডগেজ (BG 1676mm)'
-            : segment.gauge === 'METER_GAUGE'
-            ? 'মিটারগেজ (MG 1000mm)'
-            : 'ডুয়েলগেজ (DG 1676/1000mm)';
+          // Interactive Click on Track Line -> Detect Segment & Active Trains
+          hitLine.on('click', (e) => {
+            setDetectedSegment({
+              segment,
+              activeTrains: activeOnSegment,
+              latlng: [e.latlng.lat, e.latlng.lng],
+            });
+          });
 
-        trackLine.bindTooltip(
-          `<div class="p-1.5 text-xs font-sans">
-            <div class="flex items-center gap-1 font-bold text-slate-900">
-              <span>${segment.nameBn}</span>
-            </div>
-            <p class="text-[10px] text-slate-500 font-medium">${segment.nameEn}</p>
-            <p class="text-[10px] text-indigo-600 font-semibold mt-0.5">গজ: ${gaugeLabel}</p>
-            <p class="text-[10px] font-semibold mt-0.5 ${
-              activeOnSegment.length > 0 ? 'text-rose-600' : 'text-emerald-600'
-            }">
-              ${
-                activeOnSegment.length > 0
-                  ? `সনাক্তকৃত সচল ট্রেন: ${toBengaliNumber(activeOnSegment.length)} টি`
-                  : 'ট্র্যাক ক্লিয়ার (কোনো বিলম্ব নেই)'
-              }
-            </p>
-          </div>`,
-          { direction: 'top', offset: [0, -5] }
-        );
+          const gaugeLabel =
+            segment.gauge === 'BROAD_GAUGE'
+              ? 'ব্রডগেজ (BG 1676mm)'
+              : segment.gauge === 'METER_GAUGE'
+              ? 'মিটারগেজ (MG 1000mm)'
+              : 'ডুয়েলগেজ (DG 1676/1000mm)';
 
-        trackLine.addTo(routesLayerRef.current!);
+          hitLine.bindTooltip(
+            `<div class="p-1.5 text-xs font-sans">
+              <div class="flex items-center gap-1 font-bold text-slate-900">
+                <span>${segment.nameBn}</span>
+              </div>
+              <p class="text-[10px] text-slate-500 font-medium">${segment.nameEn}</p>
+              <p class="text-[10px] text-indigo-600 font-semibold mt-0.5">গজ: ${gaugeLabel} (GIS নির্ভুল)</p>
+              <p class="text-[10px] font-semibold mt-0.5 ${
+                activeOnSegment.length > 0 ? 'text-rose-600' : 'text-emerald-600'
+              }">
+                ${
+                  activeOnSegment.length > 0
+                    ? `সনাক্তকৃত সচল ট্রেন: ${toBengaliNumber(activeOnSegment.length)} টি`
+                    : 'ট্র্যাক ক্লিয়ার (কোনো বিলম্ব নেই)'
+                }
+              </p>
+            </div>`,
+            { direction: 'top', offset: [0, -5] }
+          );
+
+          hitLine.addTo(routesLayerRef.current!);
+
+          // If this segment is currently detected / tapped by user, illuminate it with an accent glow
+          if (detectedSegment?.segment.id === segment.id) {
+            L.polyline(segment.coordinates, {
+              color: '#06b6d4',
+              weight: 4.5,
+              opacity: 0.9,
+              dashArray: '8, 8',
+              lineCap: 'round',
+            }).addTo(routesLayerRef.current!);
+          }
+        } else {
+          // Fallback if user explicitly disables OpenRailwayMap GIS overlay:
+          const ballastBed = L.polyline(segment.coordinates, {
+            color: isLight ? '#334155' : '#0f172a',
+            weight: 5.5,
+            opacity: 0.55,
+            lineCap: 'round',
+            lineJoin: 'round',
+          });
+          ballastBed.addTo(routesLayerRef.current!);
+
+          // Core precision railway track
+          const trackColor =
+            segment.zone === 'padma'
+              ? isLight
+                ? '#7c3aed'
+                : '#a78bfa'
+              : segment.zone === 'west'
+              ? isLight
+                ? '#0d9488'
+                : '#2dd4bf'
+              : isLight
+              ? '#0284c7'
+              : '#38bdf8';
+
+          const trackLine = L.polyline(segment.coordinates, {
+            color: trackColor,
+            weight: 3,
+            opacity: 0.9,
+            lineCap: 'round',
+            lineJoin: 'round',
+          });
+
+          // Interactive Click on Track Line -> Detect Segment & Active Trains
+          trackLine.on('click', (e) => {
+            setDetectedSegment({
+              segment,
+              activeTrains: activeOnSegment,
+              latlng: [e.latlng.lat, e.latlng.lng],
+            });
+          });
+
+          const gaugeLabel =
+            segment.gauge === 'BROAD_GAUGE'
+              ? 'ব্রডগেজ (BG 1676mm)'
+              : segment.gauge === 'METER_GAUGE'
+              ? 'মিটারগেজ (MG 1000mm)'
+              : 'ডুয়েলগেজ (DG 1676/1000mm)';
+
+          trackLine.bindTooltip(
+            `<div class="p-1.5 text-xs font-sans">
+              <div class="flex items-center gap-1 font-bold text-slate-900">
+                <span>${segment.nameBn}</span>
+              </div>
+              <p class="text-[10px] text-slate-500 font-medium">${segment.nameEn}</p>
+              <p class="text-[10px] text-indigo-600 font-semibold mt-0.5">গজ: ${gaugeLabel}</p>
+              <p class="text-[10px] font-semibold mt-0.5 ${
+                activeOnSegment.length > 0 ? 'text-rose-600' : 'text-emerald-600'
+              }">
+                ${
+                  activeOnSegment.length > 0
+                    ? `সনাক্তকৃত সচল ট্রেন: ${toBengaliNumber(activeOnSegment.length)} টি`
+                    : 'ট্র্যাক ক্লিয়ার (কোনো বিলম্ব নেই)'
+                }
+              </p>
+            </div>`,
+            { direction: 'top', offset: [0, -5] }
+          );
+
+          trackLine.addTo(routesLayerRef.current!);
+        }
       } else {
         // Schematic Mode: Stylized high-contrast geometric transit corridors
         const corridorColor =
@@ -523,6 +610,8 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     isLight,
     onSelectStation,
     trainStatuses,
+    showOpenRailwayOverlay,
+    detectedSegment?.segment.id,
   ]);
 
   // 5. Render Trains & Google Live Traffic Congestion Ribbons
@@ -542,13 +631,13 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
 
       const { train, currentLat, currentLng, bearing, speedKmH, trafficCondition } = status;
 
-      // Draw glowing route corridor polyline for selected train
-      if (isSelected && train.routeCoordinates && train.routeCoordinates.length > 1) {
+      // Route highlight for selected train (only when GIS overlay is turned off, to keep GIS orange lines clean)
+      if (isSelected && !showOpenRailwayOverlay && train.routeCoordinates && train.routeCoordinates.length > 1) {
         L.polyline(train.routeCoordinates, {
-          color: '#10b981',
-          weight: 7,
-          opacity: 0.9,
-          dashArray: '10, 10',
+          color: '#f97316',
+          weight: 4,
+          opacity: 0.85,
+          dashArray: '8, 8',
           lineCap: 'round',
         }).addTo(trainMarkersLayerRef.current!);
       }
@@ -624,65 +713,95 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
 
           jam200mLine.addTo(trafficCongestionLayerRef.current!);
 
-          // 4. Live Train Label Pin on Track
-          const jamPillHtml = `
-            <div class="cursor-pointer group flex items-center gap-1 bg-emerald-600/95 hover:bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg border border-white/80 transition-all transform hover:scale-110 whitespace-nowrap">
-              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-              <span>${train.nameBn}</span>
-            </div>
-          `;
-          const jamIcon = L.divIcon({
-            className: 'custom-jam-pill',
-            html: jamPillHtml,
-            iconSize: [110, 18],
-            iconAnchor: [55, 24],
-          });
-          const jamMarker = L.marker([currentLat, currentLng], { icon: jamIcon });
-          jamMarker.on('click', () => onSelectTrain(train.id));
-          jamMarker.addTo(trafficCongestionLayerRef.current!);
         }
       }
 
-      // Train Marker Pin
-      let ringColor = isLight ? 'border-emerald-600 shadow-emerald-500/40' : 'border-emerald-400 shadow-emerald-500/50';
+      // 4. Linked Train Wagons / Coaches when Zoomed In (Map zoom >= 13)
+      if (mapZoom >= 13 && status.isActive && train.routeCoordinates && train.routeCoordinates.length > 1) {
+        const coachCount = train.zone === 'metro' ? 5 : 6;
+        const trailingWagons = getTrailingWagonPositions(
+          train.routeCoordinates,
+          currentLat,
+          currentLng,
+          coachCount,
+          0.022 // ~22 meters spacing between carriages
+        );
+
+        trailingWagons.forEach((w) => {
+          const isMetro = train.zone === 'metro';
+          const coachBg = isMetro
+            ? 'bg-gradient-to-r from-sky-600 to-slate-700 border-sky-300'
+            : 'bg-gradient-to-r from-emerald-700 to-emerald-800 border-emerald-400';
+          const coachLabel =
+            train.coaches && train.coaches[w.index]
+              ? train.coaches[w.index].code
+              : `বগি ${toBengaliNumber(w.index)}`;
+
+          const wagonHtml = `
+            <div style="transform: rotate(${w.bearing}deg);" class="flex items-center justify-center cursor-pointer transition-transform hover:scale-125" title="${train.nameBn} — ${coachLabel}">
+              <div class="w-5 h-2 rounded-[2px] ${coachBg} border shadow-sm flex items-center justify-around px-0.5 pointer-events-auto">
+                <span class="w-0.5 h-1 bg-amber-200/90 rounded-[0.5px]"></span>
+                <span class="w-0.5 h-1 bg-amber-200/90 rounded-[0.5px]"></span>
+                <span class="w-0.5 h-1 bg-amber-200/90 rounded-[0.5px]"></span>
+              </div>
+            </div>
+          `;
+          const wagonIcon = L.divIcon({
+            className: 'custom-train-wagon-icon',
+            html: wagonHtml,
+            iconSize: [20, 8],
+            iconAnchor: [10, 4],
+          });
+          const wagonMarker = L.marker([w.lat, w.lng], { icon: wagonIcon });
+          wagonMarker.on('click', () => onSelectTrain(train.id));
+          wagonMarker.addTo(trainMarkersLayerRef.current!);
+        });
+      }
+
+      // 5. Train Marker Pin: Small, sleek and compact with Name directly ABOVE
+      let ringColor = isLight ? 'border-emerald-600 shadow-emerald-500/30' : 'border-emerald-400 shadow-emerald-500/40';
       let dotColor = 'bg-emerald-500';
 
       if (trafficCondition === 'WAITING_CROSSING') {
-        ringColor = isLight ? 'border-amber-600 shadow-amber-500/40' : 'border-amber-400 shadow-amber-500/50';
+        ringColor = isLight ? 'border-amber-600 shadow-amber-500/30' : 'border-amber-400 shadow-amber-500/40';
         dotColor = 'bg-amber-500';
-      } else if (trafficCondition === 'STATION_STOP') {
-        ringColor = isLight ? 'border-rose-600 shadow-rose-500/40' : 'border-rose-400 shadow-rose-500/50';
+      } else if (trafficCondition === 'STATION_STOP' || !status.isActive) {
+        ringColor = isLight ? 'border-rose-600 shadow-rose-500/30' : 'border-rose-400 shadow-rose-500/40';
         dotColor = 'bg-rose-500';
       }
 
       const trainIconHtml = `
-        <div class="relative flex items-center justify-center cursor-pointer transition-transform duration-300 ${
-          isSelected ? 'scale-125 z-50' : 'hover:scale-110 z-30'
+        <div class="relative flex items-center justify-center cursor-pointer transition-transform duration-200 ${
+          isSelected ? 'scale-110 z-50' : 'hover:scale-105 z-30'
         }">
+          <!-- Train Name Pin directly ABOVE the marker -->
+          <div class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-40 select-none">
+            <div class="px-1.5 py-0.5 rounded-md text-[9px] font-black shadow-md border flex items-center gap-1 leading-none ${
+              isLight ? 'bg-white/95 text-slate-900 border-slate-300' : 'bg-slate-950/95 text-white border-slate-700'
+            }">
+              <span class="w-1.5 h-1.5 rounded-full ${status.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
+              <span>${train.nameBn}</span>
+              <span class="text-[8px] opacity-75 font-mono">(${train.number})</span>
+            </div>
+          </div>
+
           <!-- Radar Pulse Effect -->
           ${
             status.isActive
-              ? `<span class="absolute w-12 h-12 rounded-full animate-ping opacity-35 ${dotColor}"></span>`
+              ? `<span class="absolute w-7 h-7 rounded-full animate-ping opacity-25 ${dotColor}"></span>`
               : ''
           }
           
-          <!-- Outer Train Marker Ring -->
-          <div class="relative w-10 h-10 rounded-full ${
+          <!-- Outer Train Marker Ring (Compact Small Size 24x24) -->
+          <div class="relative w-6 h-6 rounded-full ${
             isLight ? 'bg-white' : 'bg-slate-950'
-          } border-2 ${ringColor} flex items-center justify-center shadow-xl">
+          } border-2 ${ringColor} flex items-center justify-center shadow-lg">
             <!-- Train Bearing Direction Arrow / Engine -->
-            <div style="transform: rotate(${bearing}deg);" class="transition-transform duration-500 flex items-center justify-center">
-              <svg class="w-5 h-5 ${isLight ? 'text-slate-800' : 'text-white'}" viewBox="0 0 24 24" fill="currentColor">
+            <div style="transform: rotate(${bearing}deg);" class="transition-transform duration-300 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5 ${isLight ? 'text-slate-800' : 'text-white'}" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
               </svg>
             </div>
-            
-            <!-- Train Number Tag -->
-            <span class="absolute -bottom-2.5 ${
-              isLight ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'
-            } border text-[9px] font-bold px-1.5 py-0.2 rounded-md leading-tight shadow-md">
-              ${train.number}
-            </span>
           </div>
         </div>
       `;
@@ -690,8 +809,8 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
       const trainIcon = L.divIcon({
         className: 'custom-train-div-icon',
         html: trainIconHtml,
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
       });
 
       const marker = L.marker([currentLat, currentLng], { icon: trainIcon });
@@ -700,7 +819,7 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
         <div class="p-3 bg-white text-slate-900 rounded-xl max-w-xs space-y-2 font-sans shadow-2xl">
           <div class="flex items-center justify-between border-b border-slate-200 pb-2">
             <div>
-              <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">${train.number} আন্তঃনগর</span>
+              <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">${train.number} ${train.zone === 'metro' ? 'মেট্রোরেল' : 'আন্তঃনগর'}</span>
               <h4 class="font-bold text-sm text-slate-900">${train.nameBn}</h4>
             </div>
             <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -720,9 +839,13 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           </div>
 
           <div class="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
-            <a href="https://eticket.railway.gov.bd/" target="_blank" rel="noopener noreferrer" class="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer no-underline text-center shadow-sm">
-              🎫 ই-টিকেট কাটুন (eticket.railway.gov.bd)
-            </a>
+            ${
+              train.zone !== 'metro'
+                ? `<a href="https://eticket.railway.gov.bd/" target="_blank" rel="noopener noreferrer" class="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer no-underline text-center shadow-sm">
+                    🎫 ই-টিকেট কাটুন (eticket.railway.gov.bd)
+                  </a>`
+                : ''
+            }
             <button id="track-popup-btn-${train.id}" class="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium text-xs rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer">
               ট্রেনটি বিস্তারিত ট্র্যাক ও বগি দেখুন
             </button>
@@ -754,6 +877,8 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     onSelectTrain,
     effectiveSoloMode,
     effectiveSettings,
+    mapZoom,
+    showOpenRailwayOverlay,
   ]);
 
   // 6. Smooth Pan to Selected Train
@@ -1043,24 +1168,6 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           </button>
         </div>
 
-        {/* Highlight In-Line Place Names Toggle */}
-        <button
-          id="rail-highlight-places-btn"
-          onClick={() => setHighlightInLinePlaces(!highlightInLinePlaces)}
-          className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
-            highlightInLinePlaces
-              ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold shadow-amber-500/20 ring-2 ring-amber-400/40'
-              : isLight
-              ? 'bg-white/90 text-slate-700 border-slate-300 hover:bg-slate-100'
-              : 'bg-slate-900/90 text-slate-300 border-slate-800 hover:bg-slate-800'
-          }`}
-          title="ইন-লাইন স্থানের নাম, আইকনিক সেতু ও জংশন হাইলাইট চালু/বন্ধ করুন"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-950" />
-          <span className="hidden md:inline">স্থানের নাম হাইলাইট</span>
-          <span className="md:hidden">হাইলাইট</span>
-        </button>
-
         {/* LiveRailMap Settings Popover */}
         <div className="relative">
           <button
@@ -1173,14 +1280,14 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
                 <div>
                   <div className="font-bold text-[11px] flex items-center gap-1 text-slate-900 dark:text-white">
                     <Layers className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>OpenRailway GIS ট্র্যাক ওভারলে</span>
+                    <span>OpenRailway GIS ট্র্যাক (ডিফল্ট)</span>
                   </div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    আন্তর্জাতিক রেলওয়ে GIS ডাটাবেস লেয়ার
+                    বাস্তব ১০০% নির্ভুল ভৌত রেললাইন ট্র্যাক ওভারলে
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowOpenRailwayOverlay(!showOpenRailwayOverlay)}
+                  onClick={handleToggleRailwayOverlay}
                   className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${
                     showOpenRailwayOverlay ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
                   }`}
@@ -1192,6 +1299,63 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
                   />
                 </button>
               </div>
+
+              {/* Map Legend Toggle */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-[11px] flex items-center gap-1 text-slate-900 dark:text-white">
+                    <Info className="w-3.5 h-3.5 text-blue-500" />
+                    <span>ম্যাপ কালার লেজেন্ড</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    রুট করিডোর ও জোন কালার নির্দেশিকা
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowLegend(!showLegend)}
+                  className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${
+                    showLegend ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white shadow-md transform transition-transform ${
+                      showLegend ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Upcoming Stops Timeline Toggle */}
+              {onUpdateSettings && settings && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-[11px] flex items-center gap-1 text-slate-900 dark:text-white">
+                      <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>পরবর্তী স্টপেজ টাইমলাইন</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      নির্বাচিত ট্রেনের স্টপেজ সময়সূচী
+                    </p>
+                  </div>
+                  <button
+                    onClick={() =>
+                      onUpdateSettings({
+                        ...settings,
+                        showUpcomingStopsTimeline: !settings.showUpcomingStopsTimeline,
+                      })
+                    }
+                    className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${
+                      settings.showUpcomingStopsTimeline ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`block w-4 h-4 rounded-full bg-white shadow-md transform transition-transform ${
+                        settings.showUpcomingStopsTimeline ? 'translate-x-5' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
 
               {/* Quick Jump Landmark Spotlight */}
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">

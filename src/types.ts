@@ -1,4 +1,4 @@
-export type TrainZone = 'east' | 'west' | 'padma';
+export type TrainZone = 'east' | 'west' | 'padma' | 'metro';
 
 export type CoachClass = 
   | 'AC_BERTH'     // এসি বার্থ
@@ -10,7 +10,8 @@ export type CoachClass =
   | 'POWER_CAR'    // পাওয়ার কার
   | 'PANTRY_CAR'   // খাবার গাড়ি / ডাইনিং
   | 'LOCOMOTIVE'   // ইঞ্জিন (লোকোমোটিভ)
-  | 'GUARD_VAN';   // গার্ড ভ্যান / লাগেজ
+  | 'GUARD_VAN'    // গার্ড ভ্যান / লাগেজ
+  | 'METRO_CAR';   // মেট্রোরেল কোচ (শীতাতপ নিয়ন্ত্রিত আধুনিক EMU)
 
 export interface Coach {
   id: string;
@@ -113,13 +114,13 @@ export interface ScreenCustomizationSettings {
 
 export const DEFAULT_SCREEN_SETTINGS: ScreenCustomizationSettings = {
   showTopStatusBar: true,
-  showSoloTrainFocus: true,
-  showUserProximityHud: true,
-  showUpcomingStopsTimeline: true,
-  showCongestionRibbons: true,
-  showLandmarkBadges: true,
-  showSpeedometerHud: true,
-  showQuickTicketBtn: true,
-  showRailwayOverlay: true,
+  showSoloTrainFocus: false,            // সব ট্রেন ট্র্যাকে দৃশ্যমান
+  showUserProximityHud: false,          // সেটিংসে অপশনাল
+  showUpcomingStopsTimeline: false,     // সেটিংসে অপশনাল
+  showCongestionRibbons: false,         // সেটিংসে অপশনাল
+  showLandmarkBadges: true,             // সেতু ও মূল পয়েন্ট
+  showSpeedometerHud: false,            // সেটিংসে অপশনাল
+  showQuickTicketBtn: true,             // বুকিং বাটন
+  showRailwayOverlay: true,             // ওপেনরেলওয়েম্যাপ GIS ট্র্যাক (ডিফল্ট সত্য নির্ভুল ট্র্যাক)
 };
 

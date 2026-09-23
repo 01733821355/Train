@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BANGLADESH_TRAINS } from './data/trains';
 import { Station, LiveTrainStatus, ScreenCustomizationSettings, DEFAULT_SCREEN_SETTINGS } from './types';
-import { computeTrainLiveStatus, getCurrentBSTMinutes } from './utils/trackerEngine';
+import { computeTrainLiveStatus, getCurrentBSTMinutes, getCurrentBSTDateInfo } from './utils/trackerEngine';
 import { formatMinutesToTime, toBengaliNumber } from './utils/geoUtils';
 import { Navbar } from './components/Navbar';
 import { LiveRailMap } from './components/LiveRailMap';
@@ -82,10 +82,14 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  // Compute live status for all trains at current time
+  // Compute live status for all trains at current time, honoring weekly off days
+  const currentBSTDayInfo = useMemo(() => getCurrentBSTDateInfo(), [timeMinutes]);
+
   const trainStatuses: LiveTrainStatus[] = useMemo(() => {
-    return BANGLADESH_TRAINS.map((train) => computeTrainLiveStatus(train, timeMinutes));
-  }, [timeMinutes]);
+    return BANGLADESH_TRAINS.map((train) =>
+      computeTrainLiveStatus(train, timeMinutes, 1.0, currentBSTDayInfo.dayOfWeekEn)
+    );
+  }, [timeMinutes, currentBSTDayInfo]);
 
   // Find currently selected train's status
   const selectedStatus = useMemo(() => {

@@ -145,8 +145,8 @@ export const UserProximityCard: React.FC<UserProximityCardProps> = ({
                 </div>
 
                 <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>ডিভিশন: <strong>{nearestStation.divisionBn}</strong></span>
-                  <span>লাইন টাইপ: <strong>{nearestStation.gaugeType === 'broad' ? 'ব্রডগেজ' : nearestStation.gaugeType === 'dual' ? 'ডুয়েলগেজ' : 'মিটারগেজ'}</strong></span>
+                  <span>বিভাগ: <strong>{nearestStation.division}</strong> ({nearestStation.district})</span>
+                  <span>অঞ্চল: <strong>{nearestStation.zone === 'west' ? 'পশ্চিমাঞ্চল' : nearestStation.zone === 'padma' ? 'পদ্মা সেতু লিংক' : 'পূর্বাঞ্চল'}</strong></span>
                 </div>
               </div>
 

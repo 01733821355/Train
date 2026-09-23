@@ -5,8 +5,8 @@ export interface RailLineSegment {
   id: string;
   nameBn: string;
   nameEn: string;
-  zone: 'east' | 'west' | 'padma';
-  gauge: 'BROAD_GAUGE' | 'METER_GAUGE' | 'DUAL_GAUGE';
+  zone: 'east' | 'west' | 'padma' | 'metro';
+  gauge: 'BROAD_GAUGE' | 'METER_GAUGE' | 'DUAL_GAUGE' | 'STANDARD_GAUGE';
   coordinates: [number, number][];
 }
 
@@ -331,9 +331,19 @@ export const BANGLADESH_RAIL_NETWORK: RailLineSegment[] = [
     gauge: 'BROAD_GAUGE',
     coordinates: [
       [24.1294, 89.0644], // Ishwardi Junction
-      [24.0920, 89.0420], // Paksey
-      [24.0805, 89.0285], // Hardinge Rail Bridge (Iconic Rail Bridge over Padma)
-      [24.0220, 88.9920], // Bheramara
+      [24.1235, 89.0605], // Ishwardi South Yard
+      [24.1140, 89.0552], // Ishwardi Curve West of EPZ
+      [24.1045, 89.0510], // Ruppur Outer Rail Approach
+      [24.0970, 89.0478], // Paksey North Approach
+      [24.0886, 89.0435], // Paksey Station
+      [24.0848, 89.0375], // Paksey Railway Colony Corridor
+      [24.0825, 89.0325], // North Abutment of Hardinge Bridge
+      [24.0805, 89.0285], // Hardinge Rail Bridge (Iconic Steel Truss Rail Bridge over Padma)
+      [24.0780, 89.0238], // South Abutment (Arazi Sara Side)
+      [24.0735, 89.0195], // Sara Rail Curve
+      [24.0620, 89.0115], // Chandur
+      [24.0450, 89.0020], // Bheramara North Outer
+      [24.0220, 88.9920], // Bheramara Station
       [23.9550, 88.9650], // Mirpur
       [23.9020, 88.9420], // Poradaha Junction
       [23.8350, 88.9220], // Halsha
@@ -492,6 +502,35 @@ export const BANGLADESH_RAIL_NETWORK: RailLineSegment[] = [
       [24.9550, 91.7450], // Salutikar
       [24.9950, 91.6850], // Afzalabad
       [25.0380, 91.6620], // Chhatak Bazar Lime & Mineral Terminal
+    ],
+  },
+
+  // 17. Dhaka Metro Rail (MRT Line-6: Uttara North to Motijheel & Kamalapur)
+  {
+    id: 'line-dhaka-metro-mrt6',
+    nameBn: 'ঢাকা মেট্রোরেল (এমআরটি লাইন-৬: উত্তরা উত্তর - মতিঝিল)',
+    nameEn: 'Dhaka Metro Rail (MRT Line-6: Uttara - Motijheel)',
+    zone: 'east',
+    gauge: 'STANDARD_GAUGE',
+    coordinates: [
+      [23.8735, 90.3705], // Uttara North (Diabari Depot)
+      [23.8640, 90.3695], // Uttara Center
+      [23.8540, 90.3685], // Uttara South
+      [23.8415, 90.3660], // Pallabi Canal Bridge
+      [23.8290, 90.3630], // Pallabi
+      [23.8190, 90.3645], // Mirpur 11
+      [23.8070, 90.3685], // Mirpur 10
+      [23.7970, 90.3725], // Kazipara
+      [23.7890, 90.3745], // Shewrapara
+      [23.7770, 90.3780], // Agargaon
+      [23.7650, 90.3875], // Bijoy Sarani
+      [23.7565, 90.3895], // Farmgate
+      [23.7495, 90.3930], // Karwan Bazar
+      [23.7385, 90.3960], // Shahbagh
+      [23.7320, 90.3975], // Dhaka University (TSC)
+      [23.7275, 90.4045], // Secretariat
+      [23.7255, 90.4165], // Motijheel
+      [23.7310, 90.4260], // Kamalapur MRT
     ],
   },
 ];
@@ -683,6 +722,23 @@ export const BANGLADESH_RAIL_NETWORK_SCHEMATIC: RailLineSegment[] = [
     coordinates: [
       [23.1667, 89.2167], // Jashore
       [23.0422, 88.8953], // Benapole
+    ],
+  },
+  {
+    id: 'schematic-dhaka-metro-mrt6',
+    nameBn: 'ঢাকা মেট্রোরেল (উত্তরা - মতিঝিল স্কিম্যাটিক)',
+    nameEn: 'Dhaka Metro Rail MRT-6 Schematic',
+    zone: 'east',
+    gauge: 'STANDARD_GAUGE',
+    coordinates: [
+      [23.8735, 90.3705], // Uttara North
+      [23.8290, 90.3630], // Pallabi
+      [23.8070, 90.3685], // Mirpur 10
+      [23.7770, 90.3780], // Agargaon
+      [23.7565, 90.3895], // Farmgate
+      [23.7385, 90.3960], // Shahbagh
+      [23.7320, 90.3975], // TSC / DU
+      [23.7255, 90.4165], // Motijheel
     ],
   },
 ];

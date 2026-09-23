@@ -194,3 +194,85 @@ export function getTrackSegmentOfLength(
   result.push(getPointAtDist(endDist));
   return result;
 }
+
+export interface TrailingWagonPosition {
+  index: number;
+  lat: number;
+  lng: number;
+  bearing: number;
+}
+
+/**
+ * Calculates accurate positions and bearings for train wagons trailing behind the locomotive along the railway track.
+ */
+export function getTrailingWagonPositions(
+  path: [number, number][],
+  currentLat: number,
+  currentLng: number,
+  wagonCount: number = 6,
+  spacingKm: number = 0.024 // ~24 meters spacing per carriage
+): TrailingWagonPosition[] {
+  if (!path || path.length < 2) return [];
+
+  // 1. Calculate cumulative distances along path
+  const cumDists: number[] = [0];
+  for (let i = 0; i < path.length - 1; i++) {
+    const d = calculateDistanceKm(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]);
+    cumDists.push(cumDists[i] + d);
+  }
+  const totalPathDist = cumDists[cumDists.length - 1];
+  if (totalPathDist === 0) return [];
+
+  // 2. Find closest point on path to (currentLat, currentLng)
+  let closestDist = Infinity;
+  let bestCenterPathDist = 0;
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const p1 = path[i];
+    const p2 = path[i + 1];
+    const segLen = cumDists[i + 1] - cumDists[i];
+    if (segLen === 0) continue;
+
+    for (let f = 0; f <= 1; f += 0.2) {
+      const [lat, lng] = interpolateCoordinates(p1, p2, f);
+      const d = calculateDistanceKm(currentLat, currentLng, lat, lng);
+      if (d < closestDist) {
+        closestDist = d;
+        bestCenterPathDist = cumDists[i] + f * segLen;
+      }
+    }
+  }
+
+  function getPointAndBearingAtDist(targetD: number): { lat: number; lng: number; bearing: number } {
+    const clampedD = Math.max(0, Math.min(totalPathDist, targetD));
+    for (let i = 0; i < cumDists.length - 1; i++) {
+      if (clampedD >= cumDists[i] && clampedD <= cumDists[i + 1]) {
+        const segLen = cumDists[i + 1] - cumDists[i];
+        const fraction = segLen === 0 ? 0 : (clampedD - cumDists[i]) / segLen;
+        const [lat, lng] = interpolateCoordinates(path[i], path[i + 1], fraction);
+        const bearing = calculateBearing(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]);
+        return { lat, lng, bearing };
+      }
+    }
+    const last = path[path.length - 1];
+    const prev = path[path.length - 2] || last;
+    return { lat: last[0], lng: last[1], bearing: calculateBearing(prev[0], prev[1], last[0], last[1]) };
+  }
+
+  const wagons: TrailingWagonPosition[] = [];
+  for (let i = 1; i <= wagonCount; i++) {
+    const wagonDist = bestCenterPathDist - (i * spacingKm);
+    if (wagonDist >= 0) {
+      const pos = getPointAndBearingAtDist(wagonDist);
+      wagons.push({
+        index: i,
+        lat: pos.lat,
+        lng: pos.lng,
+        bearing: pos.bearing,
+      });
+    }
+  }
+
+  return wagons;
+}
+

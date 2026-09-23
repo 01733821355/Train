@@ -169,14 +169,103 @@ function calculatePredictiveDelay(
 }
 
 /**
+ * Gets the current BST Day of Week information (BST = UTC+6).
+ */
+export function getCurrentBSTDateInfo(): { dayOfWeekEn: string; dayOfWeekBn: string; dayIndex: number } {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const bstDate = new Date(utc + 3600000 * 6);
+  const dayIndex = bstDate.getDay();
+  const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const daysBn = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+  return {
+    dayOfWeekEn: daysEn[dayIndex],
+    dayOfWeekBn: daysBn[dayIndex],
+    dayIndex,
+  };
+}
+
+/**
+ * Checks whether a train is on its weekly off-day today.
+ */
+export function isTrainOffDay(train: Train, dayOfWeekEn?: string): boolean {
+  const targetDay = (dayOfWeekEn || getCurrentBSTDateInfo().dayOfWeekEn).trim().toLowerCase();
+  const offEn = (train.offDayEn || '').trim().toLowerCase();
+  const offBn = (train.offDayBn || '').trim().toLowerCase();
+
+  if (!offEn || offEn === 'none' || offEn === 'no off day' || offBn === 'নাই' || offBn === 'নেই') {
+    return false;
+  }
+
+  if (offEn === targetDay) {
+    return true;
+  }
+
+  const dayMap: Record<string, string> = {
+    sunday: 'রবিবার',
+    monday: 'সোমবার',
+    tuesday: 'মঙ্গলবার',
+    wednesday: 'বুধবার',
+    thursday: 'বৃহস্পতিবার',
+    friday: 'শুক্রবার',
+    saturday: 'শনিবার',
+  };
+
+  const bnDay = dayMap[targetDay];
+  if (bnDay && offBn.includes(bnDay)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Computes real-time position and traffic status for a train at a given timeOfDayMinutes
  * (0 to 1439).
  */
 export function computeTrainLiveStatus(
   train: Train,
   currentMinutes: number,
-  trafficDensityFactor: number = 1.0
+  trafficDensityFactor: number = 1.0,
+  dayOfWeekEn?: string
 ): LiveTrainStatus {
+  // 1. Check if today is the train's weekly off-day
+  const isOffDay = isTrainOffDay(train, dayOfWeekEn);
+  if (isOffDay) {
+    const terminalStation = STATION_MAP[train.originStationId];
+    const initialCoords = train.routeCoordinates[0] || [
+      terminalStation?.lat || 23.7314,
+      terminalStation?.lng || 90.4267,
+    ];
+
+    return {
+      train,
+      isActive: false,
+      currentLat: initialCoords[0],
+      currentLng: initialCoords[1],
+      bearing: 0,
+      speedKmH: 0,
+      statusBn: `সাপ্তাহিক ছুটি (${train.offDayBn || 'অফ ডে'}) — ট্রেনটি আজ বন্ধ`,
+      statusEn: `Weekly Off-Day (${train.offDayEn || 'Off Day'}) — Not operating today`,
+      trafficCondition: 'STATION_STOP',
+      delayMinutes: 0,
+      predictiveDelay: {
+        predictedDelayMinutes: 0,
+        confidence: 'HIGH',
+        primaryFactorBn: `সাপ্তাহিক ছুটি (${train.offDayBn || 'অফ ডে'})`,
+        isLate: false,
+        severity: 'ON_TIME',
+      },
+      nextStation: null,
+      previousStation: terminalStation || null,
+      distanceToNextKm: 0,
+      etaNextStation: 'বন্ধ (সাপ্তাহিক ছুটি)',
+      progressPercent: 0,
+      bogieFrontFacing: true,
+      currentBlockSectionBn: `${terminalStation?.nameBn || 'টার্মিনাল'} ইয়ার্ড (সাপ্তাহিক ছুটি)`,
+    };
+  }
+
   const depMinutes = parseTimeToMinutes(train.departureTime);
   let arrMinutes = parseTimeToMinutes(train.arrivalTime);
   

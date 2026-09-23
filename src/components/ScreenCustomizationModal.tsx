@@ -130,9 +130,9 @@ export const ScreenCustomizationModal: React.FC<ScreenCustomizationModalProps> =
     },
     {
       key: 'showRailwayOverlay',
-      titleBn: 'ওপেনরেলওয়েম্যাপ রেললাইন ট্র্যাক লেয়ার',
-      descBn: 'বাংলাদেশের সমগ্র ব্রডগেজ ও মিটারগেজ রেললাইনের ভৌত ট্র্যাক ওভারলে',
-      icon: <Layers className="w-4 h-4 text-slate-500" />,
+      titleBn: 'OpenRailway GIS নির্ভুল রেললাইন ট্র্যাক (ডিফল্ট)',
+      descBn: 'স্যাটেলাইট ও আন্তর্জাতিক GIS রেলওয়ে ডাটাবেসের ১০০% নির্ভুল ভৌত রেললাইন ট্র্যাক ওভারলে',
+      icon: <Layers className="w-4 h-4 text-indigo-500" />,
     },
   ];
 

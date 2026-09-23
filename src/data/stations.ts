@@ -1,6 +1,9 @@
 import { Station } from '../types';
 
+import { DHAKA_METRO_STATIONS } from './metroTrains';
+
 export const BANGLADESH_STATIONS: Station[] = [
+  ...DHAKA_METRO_STATIONS,
   // Dhaka & Central
   {
     id: 'DA',
@@ -1189,6 +1192,31 @@ export const BANGLADESH_STATIONS: Station[] = [
     lat: 26.6850,
     lng: 88.4400,
     platforms: 5,
+    isJunction: true,
+  },
+  {
+    id: 'PKS',
+    code: 'PKS',
+    nameEn: 'Paksey',
+    nameBn: 'পাকশী',
+    division: 'Rajshahi',
+    district: 'Pabna',
+    zone: 'west',
+    lat: 24.0886,
+    lng: 89.0435,
+    platforms: 2,
+  },
+  {
+    id: 'BHM',
+    code: 'BHM',
+    nameEn: 'Bheramara',
+    nameBn: 'ভেড়ামারা',
+    division: 'Khulna',
+    district: 'Kushtia',
+    zone: 'west',
+    lat: 24.0220,
+    lng: 88.9920,
+    platforms: 2,
     isJunction: true,
   },
 ];
