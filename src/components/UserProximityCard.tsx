@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Station, LiveTrainStatus } from '../types';
 import { calculateDistanceKm, toBengaliNumber } from '../utils/geoUtils';
-import { MapPin, Navigation, Compass, RefreshCw, ChevronDown, ChevronUp, Train, CheckCircle2 } from 'lucide-react';
+import { MapPin, Navigation, Compass, RefreshCw, ChevronDown, ChevronUp, Train, CheckCircle2, X } from 'lucide-react';
 
 interface UserProximityCardProps {
   userCoords: { lat: number; lng: number } | null;
@@ -10,6 +10,7 @@ interface UserProximityCardProps {
   selectedStatus: LiveTrainStatus | null;
   isLocating: boolean;
   onRefreshLocation: () => void;
+  onClose?: () => void;
   onSelectStation?: (station: Station) => void;
   theme: 'light' | 'dark';
 }
@@ -21,6 +22,7 @@ export const UserProximityCard: React.FC<UserProximityCardProps> = ({
   selectedStatus,
   isLocating,
   onRefreshLocation,
+  onClose,
   onSelectStation,
   theme,
 }) => {
@@ -104,9 +106,20 @@ export const UserProximityCard: React.FC<UserProximityCardProps> = ({
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white"
+            title={isCollapsed ? 'প্রসারিত করুন' : 'সংক্ষেপ করুন'}
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+              title="লোকেশন ট্র্যাকার বন্ধ করুন"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 

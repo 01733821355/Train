@@ -897,8 +897,18 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     }
   };
 
-  // 8. User Geolocation Handler
-  const handleLocateUser = () => {
+  // 8. User Geolocation Handler: Triggered strictly by Location Button tap
+  const handleToggleLocateUser = () => {
+    // If location is already active, tapping the button turns it off
+    if (userLocation) {
+      setUserLocation(null);
+      setLocationError(null);
+      if (userLocationLayerRef.current) {
+        userLocationLayerRef.current.clearLayers();
+      }
+      return;
+    }
+
     if (!navigator.geolocation) {
       setLocationError('আপনার ব্রাউজারে লোকেশন সনাক্তকরণ সুবিধা নেই');
       return;
@@ -972,26 +982,22 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
             { permanent: false, direction: 'top' }
           );
 
-          mapInstanceRef.current.flyTo([userLat, userLng], 10, { duration: 1.5 });
+          mapInstanceRef.current.flyTo([userLat, userLng], 11, { duration: 1.5 });
         }
       },
       (err) => {
         setIsLocating(false);
-        setLocationError('লোকেশন এক্সেস পাওয়া যায়নি (ব্রাউজার পারমিশন প্রয়োজন)');
+        setLocationError('লোকেশন এক্সেস পাওয়া যায়নি (ব্রাউজারে লোকেশন অনুমতি দিন)');
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
 
-  // Automatically attempt user location on mount
+  // Live update proximity distances ONLY IF userLocation is currently active
   useEffect(() => {
-    handleLocateUser();
-  }, []);
-
-  // Live update proximity distances to nearest station and selected train whenever trainStatuses or selectedTrainId updates
-  useEffect(() => {
-    const lat = userLocation?.lat ?? 23.7314;
-    const lng = userLocation?.lng ?? 90.4267;
+    if (!userLocation) return;
+    const lat = userLocation.lat;
+    const lng = userLocation.lng;
 
     let nearestSt: Station | null = null;
     let minStDist = Infinity;
@@ -1015,14 +1021,17 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
       }
     });
 
-    setUserLocation((prev) => ({
-      lat,
-      lng,
-      nearestStation: nearestSt,
-      stationDistanceKm: Math.round(minStDist * 10) / 10,
-      nearestTrainStatus: nearestTr,
-      trainDistanceKm: Math.round(minTrDist * 10) / 10,
-    }));
+    setUserLocation((prev) => {
+      if (!prev) return null;
+      return {
+        lat,
+        lng,
+        nearestStation: nearestSt,
+        stationDistanceKm: Math.round(minStDist * 10) / 10,
+        nearestTrainStatus: nearestTr,
+        trainDistanceKm: Math.round(minTrDist * 10) / 10,
+      };
+    });
   }, [trainStatuses, selectedTrainId]);
 
   const activeTrainsCount = trainStatuses.filter((s) => s.isActive).length;
@@ -1092,15 +1101,16 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
       )}
 
       {/* 2. Floating User Proximity to Nearest Station & Train HUD (Left Side) */}
-      {effectiveSettings.showUserProximityHud && (
+      {effectiveSettings.showUserProximityHud && userLocation && (
         <div className="absolute top-14 left-3 z-20 pointer-events-auto max-w-[280px] sm:max-w-xs transition-all">
           <UserProximityCard
-            userCoords={userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null}
-            nearestStation={userLocation?.nearestStation || null}
-            stationDistanceKm={userLocation?.stationDistanceKm || 0}
+            userCoords={{ lat: userLocation.lat, lng: userLocation.lng }}
+            nearestStation={userLocation.nearestStation || null}
+            stationDistanceKm={userLocation.stationDistanceKm || 0}
             selectedStatus={selectedStatus}
             isLocating={isLocating}
-            onRefreshLocation={handleLocateUser}
+            onRefreshLocation={handleToggleLocateUser}
+            onClose={handleToggleLocateUser}
             onSelectStation={onSelectStation}
             theme={theme}
           />
@@ -1455,20 +1465,39 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           </a>
         )}
 
-        {/* User GPS Locate Me Button */}
+        {/* User GPS Locate Me Button: Only shows distance & location when tapped */}
         <button
           id="user-gps-locate-btn"
-          onClick={handleLocateUser}
+          onClick={handleToggleLocateUser}
           disabled={isLocating}
           className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
-            isLight
-              ? 'bg-white/90 text-blue-700 border-blue-200 hover:bg-blue-50'
-              : 'bg-slate-900/90 text-blue-400 border-slate-800 hover:bg-slate-800'
+            userLocation
+              ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-500 shadow-blue-500/30 ring-2 ring-blue-400/50'
+              : isLight
+              ? 'bg-white/95 text-blue-700 border-blue-200 hover:bg-blue-50'
+              : 'bg-slate-900/95 text-blue-400 border-slate-800 hover:bg-slate-800'
           }`}
-          title="আমার লোকেশন ও নিকটবর্তী ট্রেন দেখুন"
+          title={userLocation ? 'লোকেশন ও দূরত্ব বন্ধ করুন' : 'আমার লোকেশন ও নিকটবর্তী ট্রেন দেখুন'}
         >
-          <LocateFixed className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : 'text-blue-500'}`} />
-          <span className="hidden sm:inline">{isLocating ? 'খোঁজা হচ্ছে...' : 'আমার লোকেশন'}</span>
+          <LocateFixed
+            className={`w-3.5 h-3.5 ${
+              isLocating
+                ? 'animate-spin'
+                : userLocation
+                ? 'text-white animate-pulse'
+                : 'text-blue-500'
+            }`}
+          />
+          <span className="hidden sm:inline">
+            {isLocating
+              ? 'খোঁজা হচ্ছে...'
+              : userLocation
+              ? 'লোকেশন সক্রিয় (বন্ধ)'
+              : 'আমার লোকেশন'}
+          </span>
+          <span className="sm:hidden">
+            {isLocating ? '...' : userLocation ? 'লোকেশন অন' : 'লোকেশন'}
+          </span>
         </button>
       </div>
 
@@ -1736,11 +1765,11 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
         </div>
       )}
 
-      {/* User Location Radar Info Banner */}
-      {userLocation && (
+      {/* User Location Radar Info Banner - Shown only when user location is active and proximity card is not showing */}
+      {userLocation && !effectiveSettings.showUserProximityHud && (
         <div className="absolute top-16 left-3 right-3 sm:left-auto sm:right-3 sm:max-w-md z-20 pointer-events-auto animate-in slide-in-from-top-2 duration-300">
           <div
-            className={`p-3 rounded-xl border shadow-xl backdrop-blur-md text-xs space-y-1.5 ${
+            className={`p-3 rounded-xl border shadow-xl backdrop-blur-md text-xs space-y-2 ${
               isLight
                 ? 'bg-white/95 border-blue-200 text-slate-800'
                 : 'bg-slate-900/95 border-blue-900/50 text-slate-100'
@@ -1749,17 +1778,53 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
             <div className="flex items-center justify-between border-b border-blue-500/20 pb-1.5">
               <div className="flex items-center gap-1.5 font-bold text-blue-600 dark:text-blue-400">
                 <MapPin className="w-4 h-4" />
-                <span>আপনার অবস্থান রাডার</span>
+                <span>আপনার অবস্থান থেকে ট্রেনের দূরত্ব</span>
               </div>
               <button
-                onClick={() => setUserLocation(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                onClick={() => {
+                  setUserLocation(null);
+                  if (userLocationLayerRef.current) {
+                    userLocationLayerRef.current.clearLayers();
+                  }
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="বন্ধ করুন"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-1 text-[11px]">
+            <div className="space-y-1.5 text-[11px]">
+              {/* Selected Train Distance from User Location */}
+              {selectedStatus && (
+                <div className="p-2 rounded-lg bg-blue-50/80 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <strong className="text-slate-900 dark:text-white font-bold">
+                        {selectedStatus.train.nameBn} ({selectedStatus.train.number})
+                      </strong>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      গতি: {toBengaliNumber(selectedStatus.speedKmH)} কিমি/ঘ • {selectedStatus.currentBlockSectionBn}
+                    </p>
+                  </div>
+                  <span className="text-xs font-black text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded-md shrink-0">
+                    {toBengaliNumber(
+                      Math.round(
+                        calculateDistanceKm(
+                          userLocation.lat,
+                          userLocation.lng,
+                          selectedStatus.currentLat,
+                          selectedStatus.currentLng
+                        ) * 10
+                      ) / 10
+                    )}{' '}
+                    কিমি দূরে
+                  </span>
+                </div>
+              )}
+
               <p>
                 <strong className="text-slate-600 dark:text-slate-400">নিকটতম রেলস্টেশন:</strong>{' '}
                 <span className="font-semibold">
@@ -1768,17 +1833,18 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
                 ({toBengaliNumber(userLocation.stationDistanceKm)} কিমি দূরে)
               </p>
 
-              {userLocation.nearestTrainStatus ? (
+              {userLocation.nearestTrainStatus &&
+              (!selectedStatus || userLocation.nearestTrainStatus.train.id !== selectedStatus.train.id) ? (
                 <div>
                   <p>
-                    <strong className="text-slate-600 dark:text-slate-400">নিকটবর্তী সক্রিয় ট্রেন:</strong>{' '}
+                    <strong className="text-slate-600 dark:text-slate-400">নিকটবর্তী ট্রেন:</strong>{' '}
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">
                       {userLocation.nearestTrainStatus.train.nameBn}
                     </span>{' '}
                     ({toBengaliNumber(userLocation.trainDistanceKm)} কিমি দূরে •{' '}
                     {toBengaliNumber(userLocation.nearestTrainStatus.speedKmH)} কিমি/ঘণ্টা)
                   </p>
-                  {userLocation.trainDistanceKm > 20 && (
+                  {userLocation.trainDistanceKm > 25 && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
                       <Info className="w-3 h-3" />
                       আপনার এলাকায় এখন কোনো ট্রেন নেই। নিকটতম ট্রেনটি{' '}
@@ -1786,10 +1852,23 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
                     </p>
                   )}
                 </div>
-              ) : (
-                <p className="text-slate-400">নিকটবর্তী কোনো সক্রিয় ট্রেন সনাক্ত হয়নি</p>
-              )}
+              ) : null}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Location Error Notification (if permission denied) */}
+      {locationError && (
+        <div className="absolute top-16 left-3 right-3 sm:left-auto sm:right-3 sm:max-w-sm z-30 pointer-events-auto animate-in fade-in duration-200">
+          <div className="p-3 rounded-xl border border-rose-300 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 text-xs shadow-lg flex items-center justify-between gap-2">
+            <span>{locationError}</span>
+            <button
+              onClick={() => setLocationError(null)}
+              className="text-rose-500 hover:text-rose-700 font-bold px-1.5 py-0.5 rounded cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
