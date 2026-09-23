@@ -1,0 +1,6 @@
+{
+  "name": "Bangladesh Railway Live Train Tracker",
+  "description": "রিয়েল-টাইম বাংলাদেশ রেলওয়ে লাইভ ট্র্যাকিং - ট্রাফিক আপডেট, স্টেশন, সময়সূচি এবং বগি বিন্যাস।",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
