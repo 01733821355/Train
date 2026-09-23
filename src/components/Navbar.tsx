@@ -1,5 +1,5 @@
 import React from 'react';
-import { Train as TrainIcon, Clock, Radio, RotateCcw, Play, Pause, Sun, Moon, Ticket, ExternalLink } from 'lucide-react';
+import { Train as TrainIcon, Clock, Radio, RotateCcw, Play, Pause, Sun, Moon, Ticket, ExternalLink, Settings } from 'lucide-react';
 import { toBengaliNumber } from '../utils/geoUtils';
 
 interface NavbarProps {
@@ -13,6 +13,8 @@ interface NavbarProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onOpenTicketBooking?: () => void;
+  onOpenSettings?: () => void;
+  activeTab?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +28,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   theme,
   onToggleTheme,
   onOpenTicketBooking,
+  onOpenSettings,
+  activeTab,
 }) => {
   const isLight = theme === 'light';
 
@@ -61,8 +65,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Theme Toggle, Ticket & Mobile Clock */}
+          {/* Theme Toggle, Ticket, Settings & Mobile Clock */}
           <div className="flex items-center gap-1.5 md:hidden">
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                  activeTab === 'settings'
+                    ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                    : isLight
+                    ? 'bg-slate-100 border-slate-300 text-slate-700'
+                    : 'bg-slate-950 border-slate-800 text-slate-200'
+                }`}
+                title="সেটিংস পেজ"
+              >
+                <Settings className={`w-4 h-4 ${activeTab === 'settings' ? 'text-white' : 'text-orange-500'}`} />
+              </button>
+            )}
+
             {onOpenTicketBooking && (
               <button
                 onClick={onOpenTicketBooking}
@@ -135,6 +155,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             )}
           </button>
+
+          {/* Dedicated Settings Page Button Desktop */}
+          {onOpenSettings && (
+            <button
+              id="settings-page-btn"
+              onClick={onOpenSettings}
+              className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20'
+                  : isLight
+                  ? 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200'
+                  : 'bg-orange-950/40 hover:bg-orange-900/50 text-orange-400 border-orange-800/60'
+              }`}
+              title="অ্যাপ্লিকেশন ও ম্যাপ সেটিংস পেজ"
+            >
+              <Settings className={`w-3.5 h-3.5 ${activeTab === 'settings' ? 'text-white' : 'text-orange-500'}`} />
+              <span>সেটিংস</span>
+            </button>
+          )}
 
           {/* Live BST Clock Display */}
           <div

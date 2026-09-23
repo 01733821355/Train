@@ -12,7 +12,8 @@ import { StationDeparturesModal } from './components/StationDeparturesModal';
 import { GoogleTrafficScannerModal } from './components/GoogleTrafficScannerModal';
 import { TicketBookingModal } from './components/TicketBookingModal';
 import { ScreenCustomizationModal } from './components/ScreenCustomizationModal';
-import { MapPin, Train as TrainIcon, Layers, Eye, Compass, Clock, ListFilter, AlertTriangle, Activity, Ticket, Sliders } from 'lucide-react';
+import { SettingsView } from './components/SettingsView';
+import { MapPin, Train as TrainIcon, Layers, Eye, Compass, Clock, ListFilter, AlertTriangle, Activity, Ticket, Sliders, Settings } from 'lucide-react';
 
 export default function App() {
   // Theme state: default to 'light' as requested by user
@@ -50,8 +51,8 @@ export default function App() {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState<boolean>(false);
   const [ticketInitialTrainId, setTicketInitialTrainId] = useState<string | undefined>(undefined);
 
-  // Active tab on mobile/desktop: 'map' | 'trains' | 'bogie'
-  const [activeTab, setActiveTab] = useState<'map' | 'trains' | 'bogie'>('map');
+  // Active tab on mobile/desktop: 'map' | 'trains' | 'bogie' | 'settings'
+  const [activeTab, setActiveTab] = useState<'map' | 'trains' | 'bogie' | 'settings'>('map');
 
   const handleOpenTicketBooking = (trainId?: string) => {
     setTicketInitialTrainId(trainId || selectedTrainId);
@@ -170,6 +171,8 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenTicketBooking={() => handleOpenTicketBooking()}
+        onOpenSettings={() => setActiveTab(activeTab === 'settings' ? 'map' : 'settings')}
+        activeTab={activeTab}
       />
 
       {/* Main Content Area */}
@@ -290,7 +293,21 @@ export default function App() {
 
           {/* Dynamic Content Views */}
           <div className="flex-1 min-h-0 relative flex flex-col gap-2.5">
-            {activeTab === 'map' ? (
+            {activeTab === 'settings' ? (
+              <div
+                className={`flex-1 h-full min-h-0 rounded-xl sm:rounded-2xl overflow-hidden border shadow-lg ${
+                  isLight ? 'border-slate-300' : 'border-slate-800'
+                }`}
+              >
+                <SettingsView
+                  settings={screenSettings}
+                  onUpdateSettings={handleUpdateScreenSettings}
+                  theme={theme}
+                  onToggleTheme={toggleTheme}
+                  onClose={() => setActiveTab('map')}
+                />
+              </div>
+            ) : activeTab === 'map' ? (
               <div className="flex-1 h-full flex flex-col gap-2.5 min-h-0">
                 {/* Live Rail Map Container - Expanded full height on mobile */}
                 <div
@@ -307,6 +324,9 @@ export default function App() {
                     onOpenTrafficScanner={() => setIsTrafficScannerOpen(true)}
                     onTimeShift={handleChangeTime}
                     onOpenTicketBooking={handleOpenTicketBooking}
+                    settings={screenSettings}
+                    onUpdateSettings={handleUpdateScreenSettings}
+                    onOpenSettingsModal={() => setActiveTab('settings')}
                   />
                 </div>
 
@@ -343,14 +363,14 @@ export default function App() {
 
       {/* Mobile Bottom Navigation Bar */}
       <nav
-        className={`lg:hidden shrink-0 border-t px-2 py-1.5 flex items-center justify-around z-30 ${
+        className={`lg:hidden shrink-0 border-t px-1.5 py-1.5 flex items-center justify-around z-30 ${
           isLight ? 'bg-white/95 border-slate-200' : 'bg-slate-900/98 border-slate-800'
         }`}
       >
         <button
           id="mobile-nav-map"
           onClick={() => setActiveTab('map')}
-          className={`flex-1 py-1.5 px-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`flex-1 py-1.5 px-1 flex flex-col items-center gap-1 rounded-xl text-[10px] sm:text-[11px] font-semibold transition-colors cursor-pointer ${
             activeTab === 'map'
               ? 'text-emerald-600 bg-emerald-500/10 border border-emerald-500/30'
               : isLight
@@ -365,7 +385,7 @@ export default function App() {
         <button
           id="mobile-nav-trains"
           onClick={() => setActiveTab('trains')}
-          className={`flex-1 py-1.5 px-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-semibold transition-colors relative cursor-pointer ${
+          className={`flex-1 py-1.5 px-1 flex flex-col items-center gap-1 rounded-xl text-[10px] sm:text-[11px] font-semibold transition-colors relative cursor-pointer ${
             activeTab === 'trains'
               ? 'text-emerald-600 bg-emerald-500/10 border border-emerald-500/30'
               : isLight
@@ -376,23 +396,23 @@ export default function App() {
           <ListFilter className="w-4 h-4" />
           <span>ট্রেন ({toBengaliNumber(trainStatuses.length)})</span>
           {lateTrainsCount > 0 && (
-            <span className="absolute top-1 right-3 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900" />
+            <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900" />
           )}
         </button>
 
         <button
           id="mobile-nav-ticket"
           onClick={() => handleOpenTicketBooking()}
-          className="flex-1 py-1.5 px-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-bold transition-colors cursor-pointer text-emerald-600 hover:text-emerald-500"
+          className="flex-1 py-1.5 px-1 flex flex-col items-center gap-1 rounded-xl text-[10px] sm:text-[11px] font-bold transition-colors cursor-pointer text-emerald-600 hover:text-emerald-500"
         >
           <Ticket className="w-4 h-4" />
-          <span>ই-টিকেট</span>
+          <span>টিকেট</span>
         </button>
 
         <button
           id="mobile-nav-bogie"
           onClick={() => setActiveTab('bogie')}
-          className={`flex-1 py-1.5 px-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`flex-1 py-1.5 px-1 flex flex-col items-center gap-1 rounded-xl text-[10px] sm:text-[11px] font-semibold transition-colors cursor-pointer ${
             activeTab === 'bogie'
               ? 'text-emerald-600 bg-emerald-500/10 border border-emerald-500/30'
               : isLight
@@ -405,12 +425,18 @@ export default function App() {
         </button>
 
         <button
-          id="mobile-nav-radar"
-          onClick={() => setIsTrafficScannerOpen(true)}
-          className="flex-1 py-1.5 px-2 flex flex-col items-center gap-1 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+          id="mobile-nav-settings"
+          onClick={() => setActiveTab(activeTab === 'settings' ? 'map' : 'settings')}
+          className={`flex-1 py-1.5 px-1 flex flex-col items-center gap-1 rounded-xl text-[10px] sm:text-[11px] font-semibold transition-colors cursor-pointer ${
+            activeTab === 'settings'
+              ? 'text-orange-600 bg-orange-500/15 border border-orange-500/30 font-bold'
+              : isLight
+              ? 'text-slate-600 hover:text-slate-900'
+              : 'text-slate-400 hover:text-white'
+          }`}
         >
-          <Activity className="w-4 h-4" />
-          <span>রাডার</span>
+          <Settings className={`w-4 h-4 ${activeTab === 'settings' ? 'text-orange-500' : ''}`} />
+          <span>সেটিংস</span>
         </button>
       </nav>
 

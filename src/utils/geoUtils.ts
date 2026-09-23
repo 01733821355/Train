@@ -276,3 +276,82 @@ export function getTrailingWagonPositions(
   return wagons;
 }
 
+/**
+ * Snaps any coordinate to the closest point along the given railway path.
+ * Guarantees train and station markers sit 100% on the railway line.
+ */
+export function snapCoordToPath(
+  path: [number, number][],
+  lat: number,
+  lng: number
+): [number, number] {
+  if (!path || path.length === 0) return [lat, lng];
+  if (path.length === 1) return path[0];
+
+  let closestDist = Infinity;
+  let snappedLat = lat;
+  let snappedLng = lng;
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const p1 = path[i];
+    const p2 = path[i + 1];
+    for (let f = 0; f <= 1; f += 0.2) {
+      const [iLat, iLng] = interpolateCoordinates(p1, p2, f);
+      const d = calculateDistanceKm(lat, lng, iLat, iLng);
+      if (d < closestDist) {
+        closestDist = d;
+        snappedLat = iLat;
+        snappedLng = iLng;
+      }
+    }
+  }
+  return [snappedLat, snappedLng];
+}
+
+/**
+ * Extracts a subsegment of coordinates from a path between two coordinates (start and end).
+ */
+export function sliceCoords(
+  coords: [number, number][],
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number
+): [number, number][] {
+  if (!coords || coords.length < 2) return coords || [];
+
+  let sIdx = 0;
+  let eIdx = coords.length - 1;
+  let minS = Infinity;
+  let minE = Infinity;
+
+  coords.forEach((pt, i) => {
+    const ds = Math.hypot(pt[0] - startLat, pt[1] - startLng);
+    const de = Math.hypot(pt[0] - endLat, pt[1] - endLng);
+    if (ds < minS) {
+      minS = ds;
+      sIdx = i;
+    }
+    if (de < minE) {
+      minE = de;
+      eIdx = i;
+    }
+  });
+
+  if (sIdx === eIdx) {
+    if (sIdx < coords.length - 1) {
+      return [coords[sIdx], coords[sIdx + 1]];
+    } else if (sIdx > 0) {
+      return [coords[sIdx - 1], coords[sIdx]];
+    }
+    return [coords[sIdx]];
+  }
+
+  if (sIdx < eIdx) {
+    return coords.slice(sIdx, eIdx + 1);
+  } else {
+    return coords.slice(eIdx, sIdx + 1).reverse();
+  }
+}
+
+

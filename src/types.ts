@@ -105,11 +105,14 @@ export interface ScreenCustomizationSettings {
   showSoloTrainFocus: boolean;         // একক ট্রেন ট্র্যাক মোড (নির্বাচিত ট্রেনের সময় অন্যান্য ট্রেন সম্পূর্ণ লুকান)
   showUserProximityHud: boolean;       // নিকটবর্তী স্টেশন ও লাইভ দূরত্বের HUD
   showUpcomingStopsTimeline: boolean;  // ট্রেনের পরবর্তী স্টপেজ ও শিডিউল তালিকা
-  showCongestionRibbons: boolean;      // ট্রাফিক জ্যাম ও ক্রসিং রিবন
+  showCongestionRibbons: boolean;      // ১০০ - ৩০০ মিটার ট্রেন ডিটেকশন ট্রাফিক জ্যাম রিবন
+  jamDetectionRangeMeters: number;     // ১০০ থেকে ৩০০ মিটার (ডিফল্ট ২০০ মিটার)
   showLandmarkBadges: boolean;         // আইকনিক সেতু ও জংশন ট্যাগ
   showSpeedometerHud: boolean;         // লাইভ স্পিডোমিটার ও ইঞ্জিন পাওয়ার
   showQuickTicketBtn: boolean;         // ১-ক্লিক দ্রুত টিকিট বুকিং বাটন
   showRailwayOverlay: boolean;         // ওপেনরেলওয়েম্যাপ রেললাইন ট্র্যাক লেয়ার
+  showWagonsOnZoom: boolean;           // ম্যাপ জুম করলে বগি প্রদর্শন
+  smallMarkerMode: boolean;            // ছোট মার্কার এবং উপরে ট্রেনের নাম
 }
 
 export const DEFAULT_SCREEN_SETTINGS: ScreenCustomizationSettings = {
@@ -117,10 +120,13 @@ export const DEFAULT_SCREEN_SETTINGS: ScreenCustomizationSettings = {
   showSoloTrainFocus: false,            // সব ট্রেন ট্র্যাকে দৃশ্যমান
   showUserProximityHud: false,          // সেটিংসে অপশনাল
   showUpcomingStopsTimeline: false,     // সেটিংসে অপশনাল
-  showCongestionRibbons: false,         // সেটিংসে অপশনাল
+  showCongestionRibbons: true,          // ১০০-৩০০ মিটার ট্রেন ডিটেকশন জ্যাম রিবন ট্র্যাকে সক্রিয়
+  jamDetectionRangeMeters: 200,         // ২০০ মিটার (১০০মি - ৩০০মি কনফিগারযোগ্য)
   showLandmarkBadges: true,             // সেতু ও মূল পয়েন্ট
   showSpeedometerHud: false,            // সেটিংসে অপশনাল
   showQuickTicketBtn: true,             // বুকিং বাটন
   showRailwayOverlay: true,             // ওপেনরেলওয়েম্যাপ GIS ট্র্যাক (ডিফল্ট সত্য নির্ভুল ট্র্যাক)
+  showWagonsOnZoom: true,               // জুম করলে বগি দৃশ্যমান
+  smallMarkerMode: true,                // ছোট মার্কার ও উপরে নাম
 };
 

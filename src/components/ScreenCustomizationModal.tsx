@@ -49,10 +49,13 @@ export const ScreenCustomizationModal: React.FC<ScreenCustomizationModalProps> =
       showUserProximityHud: false,
       showUpcomingStopsTimeline: false,
       showCongestionRibbons: false,
+      jamDetectionRangeMeters: 200,
       showLandmarkBadges: false,
       showSpeedometerHud: false,
       showQuickTicketBtn: false,
       showRailwayOverlay: true,
+      showWagonsOnZoom: true,
+      smallMarkerMode: true,
     });
   };
 
@@ -63,10 +66,13 @@ export const ScreenCustomizationModal: React.FC<ScreenCustomizationModalProps> =
       showUserProximityHud: true,
       showUpcomingStopsTimeline: true,
       showCongestionRibbons: true,
+      jamDetectionRangeMeters: 250,
       showLandmarkBadges: true,
       showSpeedometerHud: true,
       showQuickTicketBtn: true,
       showRailwayOverlay: true,
+      showWagonsOnZoom: true,
+      smallMarkerMode: true,
     });
   };
 

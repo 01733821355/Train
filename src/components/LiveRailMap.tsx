@@ -373,32 +373,21 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
         } else {
           // Fallback if user explicitly disables OpenRailwayMap GIS overlay:
           const ballastBed = L.polyline(segment.coordinates, {
-            color: isLight ? '#334155' : '#0f172a',
+            color: isLight ? '#7c2d12' : '#431407',
             weight: 5.5,
-            opacity: 0.55,
+            opacity: 0.35,
             lineCap: 'round',
             lineJoin: 'round',
           });
           ballastBed.addTo(routesLayerRef.current!);
 
-          // Core precision railway track
-          const trackColor =
-            segment.zone === 'padma'
-              ? isLight
-                ? '#7c3aed'
-                : '#a78bfa'
-              : segment.zone === 'west'
-              ? isLight
-                ? '#0d9488'
-                : '#2dd4bf'
-              : isLight
-              ? '#0284c7'
-              : '#38bdf8';
+          // Core precision railway track: Crisp high-visibility Orange Line
+          const trackColor = '#f97316';
 
           const trackLine = L.polyline(segment.coordinates, {
             color: trackColor,
-            weight: 3,
-            opacity: 0.9,
+            weight: 3.5,
+            opacity: 0.95,
             lineCap: 'round',
             lineJoin: 'round',
           });
@@ -425,7 +414,7 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
                 <span>${segment.nameBn}</span>
               </div>
               <p class="text-[10px] text-slate-500 font-medium">${segment.nameEn}</p>
-              <p class="text-[10px] text-indigo-600 font-semibold mt-0.5">গজ: ${gaugeLabel}</p>
+              <p class="text-[10px] text-orange-600 font-semibold mt-0.5">গজ: ${gaugeLabel}</p>
               <p class="text-[10px] font-semibold mt-0.5 ${
                 activeOnSegment.length > 0 ? 'text-rose-600' : 'text-emerald-600'
               }">
@@ -442,13 +431,8 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           trackLine.addTo(routesLayerRef.current!);
         }
       } else {
-        // Schematic Mode: Stylized high-contrast geometric transit corridors
-        const corridorColor =
-          segment.zone === 'padma'
-            ? '#9333ea'
-            : segment.zone === 'west'
-            ? '#059669'
-            : '#0284c7';
+        // Schematic Mode: Crisp Orange transit corridors
+        const corridorColor = '#ea580c';
 
         const schematicLine = L.polyline(segment.coordinates, {
           color: corridorColor,
@@ -642,20 +626,20 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
         }).addTo(trainMarkersLayerRef.current!);
       }
 
-      // Exact 200-Meter Railway Track Highlight & Live Train Position
+      // Exact 100 to 300-Meter Railway Track Jam & Train Detection Ribbon
       if (
         effectiveSettings.showCongestionRibbons &&
-        googleTrafficMode &&
         status.isActive &&
         train.routeCoordinates &&
         train.routeCoordinates.length > 1
       ) {
-        // Calculate exact 200m track segment along this rail route centered at train's position
+        const detectionRangeKm = (effectiveSettings.jamDetectionRangeMeters || 200) / 1000;
+        // Calculate exact 100m-300m track segment along this rail route centered at train's position
         const jam200mPoints = getTrackSegmentOfLength(
           train.routeCoordinates,
           currentLat,
           currentLng,
-          0.2 // exactly 200 meters = 0.2 km
+          detectionRangeKm
         );
 
         if (jam200mPoints.length >= 2) {
@@ -716,8 +700,14 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
         }
       }
 
-      // 4. Linked Train Wagons / Coaches when Zoomed In (Map zoom >= 13)
-      if (mapZoom >= 13 && status.isActive && train.routeCoordinates && train.routeCoordinates.length > 1) {
+      // 4. Linked Train Wagons / Coaches when Zoomed In (Map zoom >= 12 and showWagonsOnZoom enabled)
+      if (
+        effectiveSettings.showWagonsOnZoom &&
+        mapZoom >= 12 &&
+        status.isActive &&
+        train.routeCoordinates &&
+        train.routeCoordinates.length > 1
+      ) {
         const coachCount = train.zone === 'metro' ? 5 : 6;
         const trailingWagons = getTrailingWagonPositions(
           train.routeCoordinates,

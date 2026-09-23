@@ -6,6 +6,8 @@ import {
   calculateDistanceKm,
   toBengaliNumber,
   formatMinutesToTime,
+  snapCoordToPath,
+  sliceCoords,
 } from './geoUtils';
 
 /**
@@ -361,11 +363,73 @@ export function computeTrainLiveStatus(
     }
   }
 
-  // Calculate position along routeCoordinates
-  const { lat, lng, bearing } = getPositionAlongPath(train.routeCoordinates, overallRatio);
-
   const prevStationObj = STATION_MAP[prevStop.stationId] || null;
   const nextStationObj = STATION_MAP[nextStop.stationId] || null;
+
+  // High-precision station-schedule anchored position calculation:
+  // Train position is calculated strictly between prevStop and nextStop
+  let lat = 23.7314;
+  let lng = 90.4267;
+  let bearing = 0;
+
+  if (isCurrentlyStoppedAtStation) {
+    const stObj = STATION_MAP[stoppedStation.stationId];
+    if (stObj) {
+      const [sLat, sLng] = snapCoordToPath(train.routeCoordinates, stObj.lat, stObj.lng);
+      lat = sLat;
+      lng = sLng;
+      // Get heading from closest point on path
+      const pos = getPositionAlongPath(train.routeCoordinates, overallRatio);
+      bearing = pos.bearing;
+    } else {
+      const pos = getPositionAlongPath(train.routeCoordinates, overallRatio);
+      lat = pos.lat;
+      lng = pos.lng;
+      bearing = pos.bearing;
+    }
+  } else {
+    // Train is in transit between prevStop and nextStop
+    let prevDep = parseTimeToMinutes(prevStop.departureTime);
+    let nextArr = parseTimeToMinutes(nextStop.arrivalTime);
+    if (prevDep < depMinutes) prevDep += 1440;
+    if (nextArr < depMinutes) nextArr += 1440;
+    if (nextArr <= prevDep) nextArr = prevDep + 15;
+
+    const segElapsed = Math.max(0, adjustedCurrent - prevDep);
+    const segDuration = Math.max(1, nextArr - prevDep);
+    const segRatio = Math.min(1, Math.max(0, segElapsed / segDuration));
+
+    if (prevStationObj && nextStationObj) {
+      const subSegment = sliceCoords(
+        train.routeCoordinates,
+        prevStationObj.lat,
+        prevStationObj.lng,
+        nextStationObj.lat,
+        nextStationObj.lng
+      );
+      if (subSegment && subSegment.length >= 2) {
+        const segPos = getPositionAlongPath(subSegment, segRatio);
+        lat = segPos.lat;
+        lng = segPos.lng;
+        bearing = segPos.bearing;
+      } else {
+        const fallbackPos = getPositionAlongPath(train.routeCoordinates, overallRatio);
+        lat = fallbackPos.lat;
+        lng = fallbackPos.lng;
+        bearing = fallbackPos.bearing;
+      }
+    } else {
+      const fallbackPos = getPositionAlongPath(train.routeCoordinates, overallRatio);
+      lat = fallbackPos.lat;
+      lng = fallbackPos.lng;
+      bearing = fallbackPos.bearing;
+    }
+
+    // Always snap calculated position strictly onto the train's route coordinates
+    const [snapLat, snapLng] = snapCoordToPath(train.routeCoordinates, lat, lng);
+    lat = snapLat;
+    lng = snapLng;
+  }
 
   // Calculate distance remaining to next stop
   let distanceToNextKm = 0;
