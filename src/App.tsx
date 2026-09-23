@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BANGLADESH_TRAINS } from './data/trains';
-import { Station, LiveTrainStatus } from './types';
+import { Station, LiveTrainStatus, ScreenCustomizationSettings, DEFAULT_SCREEN_SETTINGS } from './types';
 import { computeTrainLiveStatus, getCurrentBSTMinutes } from './utils/trackerEngine';
 import { formatMinutesToTime, toBengaliNumber } from './utils/geoUtils';
 import { Navbar } from './components/Navbar';
@@ -11,11 +11,29 @@ import { AutonomousTrafficMonitor } from './components/AutonomousTrafficMonitor'
 import { StationDeparturesModal } from './components/StationDeparturesModal';
 import { GoogleTrafficScannerModal } from './components/GoogleTrafficScannerModal';
 import { TicketBookingModal } from './components/TicketBookingModal';
-import { MapPin, Train as TrainIcon, Layers, Eye, Compass, Clock, ListFilter, AlertTriangle, Activity, Ticket } from 'lucide-react';
+import { ScreenCustomizationModal } from './components/ScreenCustomizationModal';
+import { MapPin, Train as TrainIcon, Layers, Eye, Compass, Clock, ListFilter, AlertTriangle, Activity, Ticket, Sliders } from 'lucide-react';
 
 export default function App() {
   // Theme state: default to 'light' as requested by user
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  // Screen customization settings (user configurable options)
+  const [screenSettings, setScreenSettings] = useState<ScreenCustomizationSettings>(() => {
+    try {
+      const saved = localStorage.getItem('bd_rail_screen_settings');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return DEFAULT_SCREEN_SETTINGS;
+  });
+  const [isScreenSettingsModalOpen, setIsScreenSettingsModalOpen] = useState<boolean>(false);
+
+  const handleUpdateScreenSettings = (newSettings: ScreenCustomizationSettings) => {
+    setScreenSettings(newSettings);
+    try {
+      localStorage.setItem('bd_rail_screen_settings', JSON.stringify(newSettings));
+    } catch (e) {}
+  };
 
   // Clock state
   const [timeMinutes, setTimeMinutes] = useState<number>(() => getCurrentBSTMinutes());

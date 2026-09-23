@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import L from 'leaflet';
-import { Station, LiveTrainStatus } from '../types';
+import { Station, LiveTrainStatus, ScreenCustomizationSettings, DEFAULT_SCREEN_SETTINGS } from '../types';
 import { BANGLADESH_STATIONS } from '../data/stations';
 import {
   BANGLADESH_RAIL_NETWORK,
@@ -10,6 +10,8 @@ import {
   RailLineSegment,
 } from '../data/railNetwork';
 import { toBengaliNumber, calculateDistanceKm, getTrackSegmentOfLength } from '../utils/geoUtils';
+import { UpcomingStopsTimeline } from './UpcomingStopsTimeline';
+import { UserProximityCard } from './UserProximityCard';
 import {
   Activity,
   Layers,
@@ -47,6 +49,9 @@ interface LiveRailMapProps {
   onOpenTrafficScanner?: () => void;
   onTimeShift?: (minutes: number) => void;
   onOpenTicketBooking?: (trainId?: string) => void;
+  settings?: ScreenCustomizationSettings;
+  onUpdateSettings?: (settings: ScreenCustomizationSettings) => void;
+  onOpenSettingsModal?: () => void;
 }
 
 interface UserLocationInfo {
@@ -75,6 +80,9 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
   onOpenTrafficScanner,
   onTimeShift,
   onOpenTicketBooking,
+  settings,
+  onUpdateSettings,
+  onOpenSettingsModal,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -87,6 +95,16 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
   const routesLayerRef = useRef<L.LayerGroup | null>(null);
   const landmarksLayerRef = useRef<L.LayerGroup | null>(null);
   const userLocationLayerRef = useRef<L.LayerGroup | null>(null);
+
+  const effectiveSettings = settings || DEFAULT_SCREEN_SETTINGS;
+  const [soloFocusOverride, setSoloFocusOverride] = useState<boolean | null>(null);
+  const effectiveSoloMode =
+    soloFocusOverride !== null ? soloFocusOverride : effectiveSettings.showSoloTrainFocus;
+
+  const selectedStatus = useMemo(
+    () => trainStatuses.find((s) => s.train.id === selectedTrainId) || null,
+    [trainStatuses, selectedTrainId]
+  );
 
   const [mapProvider, setMapProvider] = useState<MapProvider>('google-roadmap');
   // Default showOpenRailwayOverlay to true so accurate railway tracks from OpenRailwayMap render directly on top of Google Maps
@@ -516,10 +534,33 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
 
     trainStatuses.forEach((status) => {
       const isSelected = selectedTrainId === status.train.id;
+
+      // SOLO TRAIN FOCUS: When a train is selected and solo train mode is active, hide all other trains from the map!
+      if (effectiveSoloMode && selectedTrainId && status.train.id !== selectedTrainId) {
+        return;
+      }
+
       const { train, currentLat, currentLng, bearing, speedKmH, trafficCondition } = status;
 
+      // Draw glowing route corridor polyline for selected train
+      if (isSelected && train.routeCoordinates && train.routeCoordinates.length > 1) {
+        L.polyline(train.routeCoordinates, {
+          color: '#10b981',
+          weight: 7,
+          opacity: 0.9,
+          dashArray: '10, 10',
+          lineCap: 'round',
+        }).addTo(trainMarkersLayerRef.current!);
+      }
+
       // Exact 200-Meter Railway Track Highlight & Live Train Position
-      if (googleTrafficMode && status.isActive && train.routeCoordinates && train.routeCoordinates.length > 1) {
+      if (
+        effectiveSettings.showCongestionRibbons &&
+        googleTrafficMode &&
+        status.isActive &&
+        train.routeCoordinates &&
+        train.routeCoordinates.length > 1
+      ) {
         // Calculate exact 200m track segment along this rail route centered at train's position
         const jam200mPoints = getTrackSegmentOfLength(
           train.routeCoordinates,
@@ -705,14 +746,22 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
 
       marker.addTo(trainMarkersLayerRef.current!);
     });
-  }, [trainStatuses, selectedTrainId, googleTrafficMode, isLight, onSelectTrain]);
+  }, [
+    trainStatuses,
+    selectedTrainId,
+    googleTrafficMode,
+    isLight,
+    onSelectTrain,
+    effectiveSoloMode,
+    effectiveSettings,
+  ]);
 
   // 6. Smooth Pan to Selected Train
   useEffect(() => {
     if (!selectedTrainId || !mapInstanceRef.current) return;
-    const selectedStatus = trainStatuses.find((s) => s.train.id === selectedTrainId);
-    if (selectedStatus) {
-      mapInstanceRef.current.flyTo([selectedStatus.currentLat, selectedStatus.currentLng], 11, {
+    const currentStatus = trainStatuses.find((s) => s.train.id === selectedTrainId);
+    if (currentStatus) {
+      mapInstanceRef.current.flyTo([currentStatus.currentLat, currentStatus.currentLng], 11, {
         duration: 1.2,
       });
     }
@@ -819,6 +868,48 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     );
   };
 
+  // Automatically attempt user location on mount
+  useEffect(() => {
+    handleLocateUser();
+  }, []);
+
+  // Live update proximity distances to nearest station and selected train whenever trainStatuses or selectedTrainId updates
+  useEffect(() => {
+    const lat = userLocation?.lat ?? 23.7314;
+    const lng = userLocation?.lng ?? 90.4267;
+
+    let nearestSt: Station | null = null;
+    let minStDist = Infinity;
+    BANGLADESH_STATIONS.forEach((st) => {
+      const d = calculateDistanceKm(lat, lng, st.lat, st.lng);
+      if (d < minStDist) {
+        minStDist = d;
+        nearestSt = st;
+      }
+    });
+
+    let nearestTr: LiveTrainStatus | null = null;
+    let minTrDist = Infinity;
+    trainStatuses.forEach((status) => {
+      if (status.isActive) {
+        const d = calculateDistanceKm(lat, lng, status.currentLat, status.currentLng);
+        if (d < minTrDist) {
+          minTrDist = d;
+          nearestTr = status;
+        }
+      }
+    });
+
+    setUserLocation((prev) => ({
+      lat,
+      lng,
+      nearestStation: nearestSt,
+      stationDistanceKm: Math.round(minStDist * 10) / 10,
+      nearestTrainStatus: nearestTr,
+      trainDistanceKm: Math.round(minTrDist * 10) / 10,
+    }));
+  }, [trainStatuses, selectedTrainId]);
+
   const activeTrainsCount = trainStatuses.filter((s) => s.isActive).length;
 
   return (
@@ -829,6 +920,88 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     >
       {/* Map Container */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
+
+      {/* 1. Solo Train Track Mode Banner (Top Left) */}
+      {selectedStatus && (
+        <div className="absolute top-3 left-3 z-30 pointer-events-auto flex items-center gap-2 flex-wrap max-w-[calc(100%-140px)] sm:max-w-md">
+          <div
+            className={`px-3 py-1.5 rounded-xl border shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-bold transition-all ${
+              effectiveSoloMode
+                ? 'bg-emerald-600/95 text-white border-emerald-400 ring-2 ring-emerald-500/30'
+                : isLight
+                ? 'bg-white/95 border-slate-300 text-slate-800'
+                : 'bg-slate-900/95 border-slate-700 text-white'
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+              <span className="truncate">{selectedStatus.train.nameBn}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/20 text-white font-extrabold">
+                {selectedStatus.train.number}
+              </span>
+            </div>
+
+            <div className="h-3.5 w-px bg-white/40" />
+
+            {effectiveSoloMode ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSoloFocusOverride(false);
+                  if (onUpdateSettings && settings) {
+                    onUpdateSettings({ ...settings, showSoloTrainFocus: false });
+                  }
+                }}
+                className="px-2 py-0.5 rounded-lg bg-white/20 hover:bg-white/30 text-[10px] text-white font-extrabold cursor-pointer transition-all whitespace-nowrap"
+                title="ম্যাপে অন্যান্য সকল ট্রেন পুনরায় দৃশ্যমান করুন"
+              >
+                সকল ট্রেন দেখান
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setSoloFocusOverride(true);
+                  if (onUpdateSettings && settings) {
+                    onUpdateSettings({ ...settings, showSoloTrainFocus: true });
+                  }
+                }}
+                className="px-2 py-0.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-[10px] text-white font-extrabold cursor-pointer transition-all whitespace-nowrap"
+                title="শুধুমাত্র এই ট্রেনটি রেখে অন্য সব ট্রেন লুকান"
+              >
+                একক ট্রেন মোড
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Floating User Proximity to Nearest Station & Train HUD (Left Side) */}
+      {effectiveSettings.showUserProximityHud && (
+        <div className="absolute top-14 left-3 z-20 pointer-events-auto max-w-[280px] sm:max-w-xs transition-all">
+          <UserProximityCard
+            userCoords={userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null}
+            nearestStation={userLocation?.nearestStation || null}
+            stationDistanceKm={userLocation?.stationDistanceKm || 0}
+            selectedStatus={selectedStatus}
+            isLocating={isLocating}
+            onRefreshLocation={handleLocateUser}
+            onSelectStation={onSelectStation}
+            theme={theme}
+          />
+        </div>
+      )}
+
+      {/* 3. Floating Upcoming Stops Timeline for Selected Train (Right Side below top bar) */}
+      {effectiveSettings.showUpcomingStopsTimeline && selectedStatus && (
+        <div className="absolute top-14 right-3 z-20 pointer-events-auto max-w-[280px] sm:max-w-xs w-72 sm:w-80 transition-all">
+          <UpcomingStopsTimeline
+            status={selectedStatus}
+            theme={theme}
+            onSelectStation={onSelectStation}
+          />
+        </div>
+      )}
 
       {/* Top Map Action Bar */}
       <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 sm:gap-2 pointer-events-auto flex-wrap justify-end">
@@ -1041,6 +1214,23 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* Full Screen Customization Button */}
+              {onOpenSettingsModal && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettingsDropdown(false);
+                      onOpenSettingsModal();
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>পূর্ণাঙ্গ স্ক্রিন কাস্টমাইজেশন</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

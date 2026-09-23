@@ -99,3 +99,27 @@ export interface LiveTrainStatus {
   currentBlockSectionBn: string;
 }
 
+export interface ScreenCustomizationSettings {
+  showTopStatusBar: boolean;          // শীর্ষ স্ট্যাটাস ও সময় বার
+  showSoloTrainFocus: boolean;         // একক ট্রেন ট্র্যাক মোড (নির্বাচিত ট্রেনের সময় অন্যান্য ট্রেন সম্পূর্ণ লুকান)
+  showUserProximityHud: boolean;       // নিকটবর্তী স্টেশন ও লাইভ দূরত্বের HUD
+  showUpcomingStopsTimeline: boolean;  // ট্রেনের পরবর্তী স্টপেজ ও শিডিউল তালিকা
+  showCongestionRibbons: boolean;      // ট্রাফিক জ্যাম ও ক্রসিং রিবন
+  showLandmarkBadges: boolean;         // আইকনিক সেতু ও জংশন ট্যাগ
+  showSpeedometerHud: boolean;         // লাইভ স্পিডোমিটার ও ইঞ্জিন পাওয়ার
+  showQuickTicketBtn: boolean;         // ১-ক্লিক দ্রুত টিকিট বুকিং বাটন
+  showRailwayOverlay: boolean;         // ওপেনরেলওয়েম্যাপ রেললাইন ট্র্যাক লেয়ার
+}
+
+export const DEFAULT_SCREEN_SETTINGS: ScreenCustomizationSettings = {
+  showTopStatusBar: true,
+  showSoloTrainFocus: true,
+  showUserProximityHud: true,
+  showUpcomingStopsTimeline: true,
+  showCongestionRibbons: true,
+  showLandmarkBadges: true,
+  showSpeedometerHud: true,
+  showQuickTicketBtn: true,
+  showRailwayOverlay: true,
+};
+
