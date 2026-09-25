@@ -79,10 +79,68 @@ export function getPositionAlongPath(
   return { lat: end[0], lng: end[1], bearing: 0 };
 }
 
-// Convert "HH:MM" to minutes from 00:00
-export function parseTimeToMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(':').map(Number);
-  return (h || 0) * 60 + (m || 0);
+// Convert Bengali numerals to Western ASCII digits
+export function bengaliToEnglishDigits(str: string): string {
+  const bnToEnMap: Record<string, string> = {
+    '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+    '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9',
+  };
+  return str.replace(/[০-৯]/g, (ch) => bnToEnMap[ch] || ch);
+}
+
+/**
+ * Normalizes any time representation (e.g. 4-digit "0620", "1430", "0000", "0700",
+ * Bengali "০৬২০", or "06:20", "6:20") into standard "HH:MM" 24-hour string format.
+ */
+export function normalizeToHHMM(timeStr: string | number | undefined | null): string {
+  if (!timeStr) return '00:00';
+  let cleaned = bengaliToEnglishDigits(String(timeStr)).trim();
+
+  // If already standard HH:MM
+  if (cleaned.includes(':')) {
+    const parts = cleaned.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    return `${String(h % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  }
+
+  // 4-digit working timetable format: e.g. "0620" -> 06:20, "1015" -> 10:15
+  // or 3-digit: "700" -> 07:00
+  cleaned = cleaned.replace(/\D/g, '');
+  if (cleaned.length === 3) {
+    cleaned = '0' + cleaned;
+  }
+  if (cleaned.length >= 4) {
+    const h = parseInt(cleaned.slice(0, 2), 10) || 0;
+    const m = parseInt(cleaned.slice(2, 4), 10) || 0;
+    return `${String(h % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  }
+
+  const num = parseInt(cleaned, 10);
+  if (!isNaN(num)) {
+    const h = Math.floor(num / 100);
+    const m = num % 100;
+    return `${String(h % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  }
+
+  return '00:00';
+}
+
+/**
+ * Converts Working Timetable 4-digit "0000" or standard "HH:MM" format to minutes from midnight (0 to 1439).
+ * First 2 digits are hours (00-23), last 2 digits are minutes (00-59).
+ */
+export function parseTimeToMinutes(timeStr: string | number | undefined | null): number {
+  if (!timeStr) return 0;
+  const standardHHMM = normalizeToHHMM(timeStr);
+  const [h, m] = standardHHMM.split(':').map(Number);
+  return ((h || 0) % 24) * 60 + ((m || 0) % 60);
+}
+
+// Convert "HH:MM" to railway 4-digit format string e.g. "1015", "0620"
+export function formatTo4Digit(timeStr: string): string {
+  const norm = normalizeToHHMM(timeStr);
+  return norm.replace(':', '');
 }
 
 // Convert minutes from midnight to "HH:MM AM/PM"
@@ -352,6 +410,56 @@ export function sliceCoords(
   } else {
     return coords.slice(eIdx, sIdx + 1).reverse();
   }
+}
+
+/**
+ * Calculates progress ratio (0.0 to 1.0) of a given coordinate along a path polyline,
+ * along with the closest distance in kilometers to the rail line.
+ */
+export function getRatioAlongPath(
+  path: [number, number][],
+  lat: number,
+  lng: number
+): { ratio: number; closestDistKm: number; snappedLat: number; snappedLng: number } {
+  if (!path || path.length < 2) {
+    return { ratio: 0, closestDistKm: 0, snappedLat: lat, snappedLng: lng };
+  }
+
+  const cumDists: number[] = [0];
+  for (let i = 0; i < path.length - 1; i++) {
+    const d = calculateDistanceKm(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]);
+    cumDists.push(cumDists[i] + d);
+  }
+  const totalPathDist = cumDists[cumDists.length - 1];
+  if (totalPathDist === 0) {
+    return { ratio: 0, closestDistKm: 0, snappedLat: path[0][0], snappedLng: path[0][1] };
+  }
+
+  let closestDist = Infinity;
+  let bestPathDist = 0;
+  let snappedLat = lat;
+  let snappedLng = lng;
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const p1 = path[i];
+    const p2 = path[i + 1];
+    const segLen = cumDists[i + 1] - cumDists[i];
+    if (segLen === 0) continue;
+
+    for (let f = 0; f <= 1; f += 0.2) {
+      const [iLat, iLng] = interpolateCoordinates(p1, p2, f);
+      const d = calculateDistanceKm(lat, lng, iLat, iLng);
+      if (d < closestDist) {
+        closestDist = d;
+        bestPathDist = cumDists[i] + f * segLen;
+        snappedLat = iLat;
+        snappedLng = iLng;
+      }
+    }
+  }
+
+  const ratio = Math.max(0, Math.min(1, bestPathDist / totalPathDist));
+  return { ratio, closestDistKm: closestDist, snappedLat, snappedLng };
 }
 
 

@@ -82,6 +82,7 @@ export interface PredictiveDelayInfo {
 export interface LiveTrainStatus {
   train: Train;
   isActive: boolean;
+  isOffDay: boolean; // True if today is the train's weekly off day
   currentLat: number;
   currentLng: number;
   bearing: number;        // Angle in degrees for direction of travel
@@ -98,6 +99,11 @@ export interface LiveTrainStatus {
   progressPercent: number; // 0 to 100
   bogieFrontFacing: boolean; // True if Locomotive is in front towards destination
   currentBlockSectionBn: string;
+  currentSignalNameBn: string; // যেমন: 'জয়দেবপুর জংশন হোম সিগন্যাল (সবুজ - লাইন ক্লিয়ার)'
+  signalAspect: 'GREEN' | 'DOUBLE_YELLOW' | 'YELLOW' | 'RED';
+  signalDescriptionBn: string;
+  isCrowdsourcedGpsCalibrated?: boolean;
+  crowdsourcedSpeedKmH?: number;
 }
 
 export interface ScreenCustomizationSettings {
@@ -113,6 +119,7 @@ export interface ScreenCustomizationSettings {
   showRailwayOverlay: boolean;         // ওপেনরেলওয়েম্যাপ রেললাইন ট্র্যাক লেয়ার
   showWagonsOnZoom: boolean;           // ম্যাপ জুম করলে বগি প্রদর্শন
   smallMarkerMode: boolean;            // ছোট মার্কার এবং উপরে ট্রেনের নাম
+  showAdBanners: boolean;              // স্পনসর ও গুগল অ্যাডসেন্স/অ্যাডমব ব্যানার প্রদর্শন
 }
 
 export const DEFAULT_SCREEN_SETTINGS: ScreenCustomizationSettings = {
@@ -128,5 +135,39 @@ export const DEFAULT_SCREEN_SETTINGS: ScreenCustomizationSettings = {
   showRailwayOverlay: true,             // ওপেনরেলওয়েম্যাপ GIS ট্র্যাক (ডিফল্ট সত্য নির্ভুল ট্র্যাক)
   showWagonsOnZoom: true,               // জুম করলে বগি দৃশ্যমান
   smallMarkerMode: true,                // ছোট মার্কার ও উপরে নাম
+  showAdBanners: true,                  // বিজ্ঞাপন ও রাজস্ব ব্যানার
 };
+
+export interface OnboardTripState {
+  isActive: boolean;
+  trainId: string;
+  trainNameBn: string;
+  trainNameEn: string;
+  destinationStationId: string;
+  destinationStationNameBn: string;
+  destinationStationNameEn: string;
+  destLat: number;
+  destLng: number;
+  alarmDistanceKm?: number;
+  alarmTriggered: boolean;
+  alarmDismissed: boolean;
+  userLat?: number;
+  userLng?: number;
+  userSpeedKmH?: number;
+  userAccuracyMeters?: number;
+  lastGpsSyncTime?: number;
+  isGpsTrackingActive?: boolean;
+  crowdsourcedCalibrationActive?: boolean;
+  distanceToDestKm?: number;
+}
+
+export interface MonetizationState {
+  impressions: number;
+  clicks: number;
+  earningsBdt: number;
+  isVipUnlocked: boolean;
+  publisherId: string;
+  adFrequency: 'standard' | 'high' | 'minimal';
+}
+
 

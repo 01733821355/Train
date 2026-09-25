@@ -8,6 +8,7 @@ import {
   formatMinutesToTime,
   snapCoordToPath,
   sliceCoords,
+  getRatioAlongPath,
 } from './geoUtils';
 
 /**
@@ -195,26 +196,39 @@ export function isTrainOffDay(train: Train, dayOfWeekEn?: string): boolean {
   const offEn = (train.offDayEn || '').trim().toLowerCase();
   const offBn = (train.offDayBn || '').trim().toLowerCase();
 
-  if (!offEn || offEn === 'none' || offEn === 'no off day' || offBn === 'নাই' || offBn === 'নেই') {
+  // If explicitly says no off-day / operates daily
+  if (
+    !offEn ||
+    offEn === 'none' ||
+    offEn === 'no off day' ||
+    offEn.includes('none') ||
+    offEn.includes('daily') ||
+    offBn === 'নাই' ||
+    offBn === 'নেই' ||
+    offBn.includes('নাই') ||
+    offBn.includes('নেই') ||
+    offBn.includes('প্রতিদিন')
+  ) {
     return false;
   }
 
-  if (offEn === targetDay) {
+  // Check English day name
+  if (offEn.includes(targetDay) || targetDay.includes(offEn)) {
     return true;
   }
 
-  const dayMap: Record<string, string> = {
-    sunday: 'রবিবার',
-    monday: 'সোমবার',
-    tuesday: 'মঙ্গলবার',
-    wednesday: 'বুধবার',
-    thursday: 'বৃহস্পতিবার',
-    friday: 'শুক্রবার',
-    saturday: 'শনিবার',
+  const dayMap: Record<string, { bnFull: string; bnShort: string }> = {
+    sunday: { bnFull: 'রবিবার', bnShort: 'রবি' },
+    monday: { bnFull: 'সোমবার', bnShort: 'সোম' },
+    tuesday: { bnFull: 'মঙ্গলবার', bnShort: 'মঙ্গল' },
+    wednesday: { bnFull: 'বুধবার', bnShort: 'বুধ' },
+    thursday: { bnFull: 'বৃহস্পতিবার', bnShort: 'বৃহস্পতি' },
+    friday: { bnFull: 'শুক্রবার', bnShort: 'শুক্র' },
+    saturday: { bnFull: 'শনিবার', bnShort: 'শনি' },
   };
 
-  const bnDay = dayMap[targetDay];
-  if (bnDay && offBn.includes(bnDay)) {
+  const dayInfo = dayMap[targetDay];
+  if (dayInfo && (offBn.includes(dayInfo.bnFull) || offBn.includes(dayInfo.bnShort))) {
     return true;
   }
 
@@ -229,7 +243,8 @@ export function computeTrainLiveStatus(
   train: Train,
   currentMinutes: number,
   trafficDensityFactor: number = 1.0,
-  dayOfWeekEn?: string
+  dayOfWeekEn?: string,
+  crowdsourceGps?: { userLat: number; userLng: number; speedKmH?: number; accuracyMeters?: number }
 ): LiveTrainStatus {
   // 1. Check if today is the train's weekly off-day
   const isOffDay = isTrainOffDay(train, dayOfWeekEn);
@@ -243,6 +258,7 @@ export function computeTrainLiveStatus(
     return {
       train,
       isActive: false,
+      isOffDay: true,
       currentLat: initialCoords[0],
       currentLng: initialCoords[1],
       bearing: 0,
@@ -265,6 +281,10 @@ export function computeTrainLiveStatus(
       progressPercent: 0,
       bogieFrontFacing: true,
       currentBlockSectionBn: `${terminalStation?.nameBn || 'টার্মিনাল'} ইয়ার্ড (সাপ্তাহিক ছুটি)`,
+      currentSignalNameBn: `${terminalStation?.nameBn || 'টার্মিনাল'} শান্টিং ও ইয়ার্ড সিগন্যাল (বন্ধ)`,
+      signalAspect: 'RED',
+      signalDescriptionBn: 'সাপ্তাহিক ছুটির কারণে ট্রেনটি টার্মিনাল ইয়ার্ডে শান্টিং ট্র্যাকে সংরক্ষিত আছে।',
+      isCrowdsourcedGpsCalibrated: false,
     };
   }
 
@@ -305,6 +325,7 @@ export function computeTrainLiveStatus(
     return {
       train,
       isActive: false,
+      isOffDay: false,
       currentLat: initialCoords[0],
       currentLng: initialCoords[1],
       bearing: 0,
@@ -323,13 +344,21 @@ export function computeTrainLiveStatus(
       progressPercent: isPostArrival ? 100 : 0,
       bogieFrontFacing: true,
       currentBlockSectionBn: `${terminalStation?.nameBn || 'স্টেশন'} ইয়ার্ড`,
+      currentSignalNameBn: isPostArrival
+        ? `${terminalStation?.nameBn || 'টার্মিনাল'} বাফার স্টপ সিগন্যাল (যাত্রা সমাপ্ত)`
+        : `${terminalStation?.nameBn || 'টার্মিনাল'} ডিপার্চার স্টার্টার সিগন্যাল (ছাড়ার প্রস্তুতি)`,
+      signalAspect: isPostArrival ? 'RED' : 'YELLOW',
+      signalDescriptionBn: isPostArrival
+        ? 'ট্রেন সফলভাবে গন্তব্যে এসে পৌঁছেছে।'
+        : `ট্রেন নির্ধারিত সময় (${train.departureTime}) অনুযায়ী প্ল্যাটফর্মে প্রস্তুত রয়েছে।`,
+      isCrowdsourcedGpsCalibrated: false,
     };
   }
 
   // Active on track! Compute exact stop segment
   const elapsedMinutes = adjustedCurrent - depMinutes;
   const totalDuration = arrMinutes - depMinutes;
-  const overallRatio = Math.min(1, Math.max(0, elapsedMinutes / (totalDuration || 1)));
+  let overallRatio = Math.min(1, Math.max(0, elapsedMinutes / (totalDuration || 1)));
 
   // Inspect schedule stops to find current or next station
   const stops = train.stops;
@@ -431,6 +460,25 @@ export function computeTrainLiveStatus(
     lng = snapLng;
   }
 
+  // Crowdsourced passenger GPS location calibration:
+  // If an onboard passenger is sending their real live GPS coordinates within 10km of the rail route
+  let isCrowdsourcedGpsCalibrated = false;
+  let crowdsourcedSpeedKmH: number | undefined = undefined;
+
+  if (crowdsourceGps && crowdsourceGps.userLat && crowdsourceGps.userLng) {
+    const check = getRatioAlongPath(train.routeCoordinates, crowdsourceGps.userLat, crowdsourceGps.userLng);
+    if (check.closestDistKm <= 10.0) {
+      lat = check.snappedLat;
+      lng = check.snappedLng;
+      overallRatio = check.ratio;
+      isCrowdsourcedGpsCalibrated = true;
+
+      if (crowdsourceGps.speedKmH !== undefined && crowdsourceGps.speedKmH > 3) {
+        crowdsourcedSpeedKmH = Math.round(crowdsourceGps.speedKmH);
+      }
+    }
+  }
+
   // Calculate distance remaining to next stop
   let distanceToNextKm = 0;
   if (nextStationObj) {
@@ -467,6 +515,12 @@ export function computeTrainLiveStatus(
       statusBn = `সম্পূর্ণ গতিতে মেইন লাইনে সচল (${toBengaliNumber(speedKmH)} কিমি/ঘণ্টা)`;
       statusEn = `Mainline clear cruising (${speedKmH} km/h)`;
     }
+
+    if (crowdsourcedSpeedKmH !== undefined) {
+      speedKmH = crowdsourcedSpeedKmH;
+      statusBn = `যাত্রীর লাইভ GPS ট্র্যাকিং: গতি ${toBengaliNumber(speedKmH)} কিমি/ঘণ্টা`;
+      statusEn = `Crowdsourced Live GPS: Speed ${speedKmH} km/h`;
+    }
   }
 
   // Upcoming stops for predictive delay analysis
@@ -484,9 +538,44 @@ export function computeTrainLiveStatus(
     ? `${prevStationObj.nameBn} — ${nextStationObj.nameBn} ব্লক সেকশন`
     : `${nextStationObj?.nameBn || 'রেললাইন'} সংলগ্ন ট্র্যাক`;
 
+  // Dynamic Signal Naming & Signal Aspect Engine
+  let currentSignalNameBn = '';
+  let signalAspect: 'GREEN' | 'DOUBLE_YELLOW' | 'YELLOW' | 'RED' = 'GREEN';
+  let signalDescriptionBn = '';
+
+  if (isCurrentlyStoppedAtStation) {
+    signalAspect = 'RED';
+    currentSignalNameBn = `${stoppedStation.stationNameBn} প্ল্যাটফর্ম #${toBengaliNumber(stoppedStation.platform || 1)} স্টার্টার সিগন্যাল (ছাড়ার সংকেত অপেক্ষমাণ)`;
+    signalDescriptionBn = `স্টেশনে নির্ধারিত স্টপেজে থেমে আছে। প্ল্যাটফর্ম স্টার্টার সিগন্যাল ক্লিয়ার হলে ট্রেন ছাড়বে।`;
+  } else if (distanceToNextKm <= 2.5) {
+    if (trafficCondition === 'WAITING_CROSSING') {
+      signalAspect = 'YELLOW';
+      currentSignalNameBn = `${nextStationObj?.nameBn || nextStop.stationNameBn} হোম সিগন্যাল (হলুদ সংকেত - গতি সীমিত)`;
+      signalDescriptionBn = `স্টেশন এন্ট্রি হোম সিগন্যালে হলুদ বাতি: সিঙ্গেল লাইন ক্রসিং ও লুপ লাইন ক্লিয়ারেন্স সংকেত।`;
+    } else {
+      signalAspect = 'GREEN';
+      currentSignalNameBn = `${nextStationObj?.nameBn || nextStop.stationNameBn} হোম সিগন্যাল (সবুজ - প্ল্যাটফর্ম #${toBengaliNumber(nextStop.platform || 1)} লাইন ক্লিয়ার)`;
+      signalDescriptionBn = `স্টেশন হোম সিগন্যাল ক্লিয়ার। নির্ধারিত প্ল্যাটফর্মে আগমনের অনুমতি প্রাপ্ত।`;
+    }
+  } else if (distanceToNextKm <= 6.0) {
+    signalAspect = trafficCondition === 'WAITING_CROSSING' ? 'DOUBLE_YELLOW' : 'GREEN';
+    currentSignalNameBn = `${nextStationObj?.nameBn || nextStop.stationNameBn} আউটার ও ডিস্ট্যান্ট সিগন্যাল (${signalAspect === 'GREEN' ? 'অনুমোদিত' : 'সতর্ক সংকেত'})`;
+    signalDescriptionBn = `স্টেশন সীমানার আউটার সিগন্যাল অতিক্রম করছে। লাইন সেকশন নজরদারিতে রয়েছে।`;
+  } else if (trafficCondition === 'WAITING_CROSSING') {
+    signalAspect = 'YELLOW';
+    currentSignalNameBn = `${nextStationObj?.nameBn || 'জংশন'} ক্রসিং ক্লিয়ারেন্স ও ওয়ার্নিং সিগন্যাল`;
+    signalDescriptionBn = `বিপরীত ট্রেনের ক্রসিংয়ের জন্য ক্লিয়ারেন্স কমানো হয়েছে। গতি সতর্ক সীমায় রয়েছে।`;
+  } else {
+    signalAspect = 'GREEN';
+    const blockNum = Math.floor((distanceToNextKm % 4) + 1);
+    currentSignalNameBn = `${prevStationObj?.nameBn || 'সেকশন'} — ${nextStationObj?.nameBn || 'সেকশন'} অটোমেটিক ব্লক সিগন্যাল #${toBengaliNumber(blockNum)} (সবুজ - লাইন ক্লিয়ার)`;
+    signalDescriptionBn = `মেইন লাইনে অটোমেটিক কালার লাইট ব্লক সিগন্যাল সবুজ। সেকশন সম্পূর্ণ নিরাপদ।`;
+  }
+
   return {
     train,
     isActive: true,
+    isOffDay: false,
     currentLat: lat,
     currentLng: lng,
     bearing,
@@ -503,6 +592,11 @@ export function computeTrainLiveStatus(
     progressPercent: Math.round(overallRatio * 100),
     bogieFrontFacing: true,
     currentBlockSectionBn,
+    currentSignalNameBn,
+    signalAspect,
+    signalDescriptionBn,
+    isCrowdsourcedGpsCalibrated,
+    crowdsourcedSpeedKmH,
   };
 }
 

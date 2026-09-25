@@ -1,21 +1,18 @@
 import { Coach } from '../types';
 import { BANGLADESH_RAIL_NETWORK } from './railNetwork';
 
-// Helper to generate realistic Bangladesh Railway coach arrangement
-export function generateStandardCoaches(trainName: string, acHeavy = false): Coach[] {
-  return [
-    {
-      id: 'loco-1',
-      code: 'ইঞ্জিন',
-      nameEn: 'Locomotive (WDP-4B / Class 3000)',
-      nameBn: 'লোকোমোটিভ ইঞ্জিন',
-      coachClass: 'LOCOMOTIVE',
-      seats: 0,
-      hasToilet: false,
-      hasWheelchair: false,
-      positionFromFront: 1,
-      descriptionBn: '৩০০০ এইচপি ব্রডগেজ/মিটারগেজ ডিজেল-ইলেকট্রিক ইঞ্জিন (সামনে)',
-    },
+// Helper to generate realistic Bangladesh Railway 16-coach arrangement
+// Total 16 passenger coaches: ক (Ka) to ত (Ta) + 1 Locomotive Engine
+// DOWN: Dhaka -> Chattogram / Outbound (ক is at the front, right behind engine)
+// UP: Chattogram -> Dhaka / Return trip (ত is behind engine, ক is at the very rear)
+export function generateStandardCoaches(
+  trainName: string,
+  acHeavy = false,
+  direction: 'DOWN' | 'UP' = 'DOWN'
+): Coach[] {
+  const isUp = direction === 'UP';
+
+  const baseCoaches: Omit<Coach, 'positionFromFront'>[] = [
     {
       id: 'coach-ka',
       code: 'ক',
@@ -25,8 +22,7 @@ export function generateStandardCoaches(trainName: string, acHeavy = false): Coa
       seats: 36,
       hasToilet: true,
       hasWheelchair: true,
-      positionFromFront: 2,
-      descriptionBn: 'জেনারেটর পাওয়ার কার ও জরুরি লাইটিং কন্ট্রোল',
+      descriptionBn: 'পাওয়ার কার, ডিজেল জেনারেটর ইউনিট ও শোভন চেয়ার (ইমার্জেন্সি লাইটিং কন্ট্রোল)',
     },
     {
       id: 'coach-kha',
@@ -37,8 +33,7 @@ export function generateStandardCoaches(trainName: string, acHeavy = false): Coa
       seats: 60,
       hasToilet: true,
       hasWheelchair: false,
-      positionFromFront: 3,
-      descriptionBn: 'উচ্চমানের আরামদায়ক শোভন চেয়ার ক্লাস',
+      descriptionBn: 'উচ্চমানের আরামদায়ক শোভন চেয়ার ক্লাস',
     },
     {
       id: 'coach-ga',
@@ -49,8 +44,7 @@ export function generateStandardCoaches(trainName: string, acHeavy = false): Coa
       seats: 60,
       hasToilet: true,
       hasWheelchair: false,
-      positionFromFront: 4,
-      descriptionBn: 'শোভন চেয়ার ক্লাস, প্রশস্ত লাগেজ র্যাক',
+      descriptionBn: 'শোভন চেয়ার ক্লাস, প্রশস্ত লাগেজ র্যাক ও ফ্যান/লাইট সুবিধা',
     },
     {
       id: 'coach-gha',
@@ -61,8 +55,7 @@ export function generateStandardCoaches(trainName: string, acHeavy = false): Coa
       seats: 60,
       hasToilet: true,
       hasWheelchair: false,
-      positionFromFront: 5,
-      descriptionBn: 'শোভন চেয়ার ক্লাস',
+      descriptionBn: 'শোভন চেয়ার ক্লাস',
     },
     {
       id: 'coach-umo',
@@ -73,94 +66,154 @@ export function generateStandardCoaches(trainName: string, acHeavy = false): Coa
       seats: 60,
       hasToilet: true,
       hasWheelchair: false,
-      positionFromFront: 6,
-      descriptionBn: 'শোভন চেয়ার ক্লাস',
+      descriptionBn: 'শোভন চেয়ার ক্লাস',
     },
     {
       id: 'coach-ca',
       code: 'চ',
-      nameEn: 'Coach Cha (Pantry Car & Dining)',
-      nameBn: 'বগি চ (খাবার গাড়ি ও ক্যাফেটেরিয়া)',
-      coachClass: 'PANTRY_CAR',
-      seats: 24,
-      hasToilet: true,
-      hasWheelchair: false,
-      positionFromFront: 7,
-      descriptionBn: 'বাংলাদেশ রেলওয়ে ক্যাটারিং ও চা-নাস্তা কাউন্টার',
-    },
-    {
-      id: 'coach-chha',
-      code: 'ছ',
-      nameEn: 'Coach Chha (Snigdha AC Chair)',
-      nameBn: 'বগি ছ (স্নিগ্ধা এসি চেয়ার)',
-      coachClass: 'SNIGDHA',
-      seats: 55,
-      hasToilet: true,
-      hasWheelchair: true,
-      positionFromFront: 8,
-      descriptionBn: 'শীতাতপ নিয়ন্ত্রিত স্নিগ্ধা চেয়ার, রিক্লাইনিং সিট',
-    },
-    {
-      id: 'coach-ja',
-      code: 'জ',
-      nameEn: 'Coach Ja (Snigdha AC Chair)',
-      nameBn: 'বগি জ (স্নিগ্ধা এসি চেয়ার)',
-      coachClass: 'SNIGDHA',
-      seats: 55,
-      hasToilet: true,
-      hasWheelchair: false,
-      positionFromFront: 9,
-      descriptionBn: 'শীতাতপ নিয়ন্ত্রিত স্নিগ্ধা চেয়ার',
-    },
-    {
-      id: 'coach-jha',
-      code: 'ঝ',
-      nameEn: 'Coach Jha (AC Berth / Cabin)',
-      nameBn: 'বগি ঝ (এসি কেবিন / বার্থ)',
-      coachClass: acHeavy ? 'AC_BERTH' : 'SNIGDHA',
-      seats: acHeavy ? 36 : 55,
-      hasToilet: true,
-      hasWheelchair: false,
-      positionFromFront: 10,
-      descriptionBn: acHeavy ? 'প্রিমিয়াম ২-বার্থ ও ৪-বার্থ এসি স্লিপার কেবিন' : 'স্নিগ্ধা এসি চেয়ার',
-    },
-    {
-      id: 'coach-nya',
-      code: 'ঞ',
-      nameEn: 'Coach Nya (AC Cabin / First Class)',
-      nameBn: 'বগি ঞ (এসি কেবিন / ফার্স্ট ক্লাস)',
-      coachClass: 'AC_BERTH',
-      seats: 36,
-      hasToilet: true,
-      hasWheelchair: false,
-      positionFromFront: 11,
-      descriptionBn: 'ব্যক্তিগত লকার ও রিডিং লাইট সম্বলিত এসি কেবিন',
-    },
-    {
-      id: 'coach-ta',
-      code: 'ট',
-      nameEn: 'Coach Ta (Shovon Chair)',
-      nameBn: 'বগি ট (শোভন চেয়ার)',
+      nameEn: 'Coach Cha (Shovon Chair)',
+      nameBn: 'বগি চ (শোভন চেয়ার)',
       coachClass: 'SHOVON_CHAIR',
       seats: 60,
       hasToilet: true,
       hasWheelchair: false,
-      positionFromFront: 12,
-      descriptionBn: 'শোভন চেয়ার ক্লাস',
+      descriptionBn: 'শোভন চেয়ার ক্লাস',
+    },
+    {
+      id: 'coach-chha',
+      code: 'ছ',
+      nameEn: 'Coach Chha (Pantry Car & Dining)',
+      nameBn: 'বগি ছ (খাবার গাড়ি ও ডাইনিং ক্যাফেটেরিয়া)',
+      coachClass: 'PANTRY_CAR',
+      seats: 30,
+      hasToilet: true,
+      hasWheelchair: false,
+      descriptionBn: 'বাংলাদেশ রেলওয়ে ক্যাটারিং, চা-নাস্তা ও ডাইনিং কার',
+    },
+    {
+      id: 'coach-ja',
+      code: 'জ',
+      nameEn: 'Coach Ja (Shovon Chair)',
+      nameBn: 'বগি জ (শোভন চেয়ার)',
+      coachClass: 'SHOVON_CHAIR',
+      seats: 60,
+      hasToilet: true,
+      hasWheelchair: false,
+      descriptionBn: 'শোভন চেয়ার ক্লাস',
+    },
+    {
+      id: 'coach-jha',
+      code: 'ঝ',
+      nameEn: 'Coach Jha (Snigdha AC Chair)',
+      nameBn: 'বগি ঝ (স্নিগ্ধা এসি চেয়ার)',
+      coachClass: 'SNIGDHA',
+      seats: 55,
+      hasToilet: true,
+      hasWheelchair: true,
+      descriptionBn: 'শীতাতপ নিয়ন্ত্রিত স্নিগ্ধা চেয়ার, রিক্লাইনিং সিট ও চার্জিং পোর্ট',
+    },
+    {
+      id: 'coach-nya',
+      code: 'ঞ',
+      nameEn: 'Coach Nya (Snigdha AC Chair)',
+      nameBn: 'বগি ঞ (স্নিগ্ধা এসি চেয়ার)',
+      coachClass: 'SNIGDHA',
+      seats: 55,
+      hasToilet: true,
+      hasWheelchair: false,
+      descriptionBn: 'শীতাতপ নিয়ন্ত্রিত স্নিগ্ধা চেয়ার ক্লাস',
+    },
+    {
+      id: 'coach-ta',
+      code: 'ট',
+      nameEn: 'Coach Ta (Snigdha AC Chair)',
+      nameBn: 'বগি ট (স্নিগ্ধা এসি চেয়ার)',
+      coachClass: 'SNIGDHA',
+      seats: 55,
+      hasToilet: true,
+      hasWheelchair: false,
+      descriptionBn: 'শীতাতপ নিয়ন্ত্রিত স্নিগ্ধা চেয়ার ক্লাস',
     },
     {
       id: 'coach-tha',
       code: 'ঠ',
-      nameEn: 'Coach Tha (Guard Van & Luggage)',
-      nameBn: 'বগি ঠ (গার্ড ভ্যান ও লাগেজ ব্রেক)',
+      nameEn: 'Coach Tha (AC Cabin / Snigdha)',
+      nameBn: 'বগি ঠ (এসি কেবিন বার্থ / স্নিগ্ধা)',
+      coachClass: acHeavy ? 'AC_BERTH' : 'SNIGDHA',
+      seats: acHeavy ? 36 : 55,
+      hasToilet: true,
+      hasWheelchair: false,
+      descriptionBn: acHeavy ? 'প্রিমিয়াম ২-বার্থ ও ৪-বার্থ এসি স্লিপার কেবিন' : 'শীতাতপ নিয়ন্ত্রিত স্নিগ্ধা চেয়ার',
+    },
+    {
+      id: 'coach-da',
+      code: 'ড',
+      nameEn: 'Coach Da (AC Cabin / Shovon)',
+      nameBn: 'বগি ড (এসি কেবিন / শোভন)',
+      coachClass: acHeavy ? 'AC_BERTH' : 'SHOVON_CHAIR',
+      seats: acHeavy ? 36 : 60,
+      hasToilet: true,
+      hasWheelchair: false,
+      descriptionBn: acHeavy ? 'ব্যক্তিগত লকার ও রিডিং লাইট সম্বলিত এসি কেবিন' : 'শোভন চেয়ার ক্লাস',
+    },
+    {
+      id: 'coach-dha',
+      code: 'ঢ',
+      nameEn: 'Coach Dha (Shovon Chair)',
+      nameBn: 'বগি ঢ (শোভন চেয়ার)',
+      coachClass: 'SHOVON_CHAIR',
+      seats: 60,
+      hasToilet: true,
+      hasWheelchair: false,
+      descriptionBn: 'শোভন চেয়ার ক্লাস',
+    },
+    {
+      id: 'coach-na',
+      code: 'ণ',
+      nameEn: 'Coach Na (Shovon Chair)',
+      nameBn: 'বগি ণ (শোভন চেয়ার)',
+      coachClass: 'SHOVON_CHAIR',
+      seats: 60,
+      hasToilet: true,
+      hasWheelchair: false,
+      descriptionBn: 'শোভন চেয়ার ক্লাস',
+    },
+    {
+      id: 'coach-taa',
+      code: 'ত',
+      nameEn: 'Coach Ta (Guard Van & Shovon)',
+      nameBn: 'বগি ত (গার্ড ভ্যান ও লাগেজ ব্রেক)',
       coachClass: 'GUARD_VAN',
-      seats: 12,
+      seats: 36,
       hasToilet: true,
       hasWheelchair: true,
-      positionFromFront: 13,
-      descriptionBn: 'ট্রেন পরিচালকের (গার্ড) কেবিন ও পেছনের লাল সিগন্যাল বাতি',
+      descriptionBn: 'ট্রেন পরিচালকের (গার্ড) কেবিন, পেছনের লাল বাতি ও শোভন চেয়ার',
     },
   ];
+
+  // In UP direction (Return trip, e.g. Chattogram -> Dhaka), the rake order reverses:
+  // ত is right behind locomotive, and ক is at the very rear (সবার শেষে)
+  const orderedPassengerCoaches = isUp ? [...baseCoaches].reverse() : baseCoaches;
+
+  const locomotiveCoach: Coach = {
+    id: 'loco-1',
+    code: 'ইঞ্জিন',
+    nameEn: 'Locomotive (Class 3000 / 3300 HP)',
+    nameBn: 'লোকোমোটিভ ইঞ্জিন',
+    coachClass: 'LOCOMOTIVE',
+    seats: 0,
+    hasToilet: false,
+    hasWheelchair: false,
+    positionFromFront: 1,
+    descriptionBn: '৩০০০+ এইচপি আধুনিক ব্রডগেজ/মিটারগেজ ডিজেল-ইলেকট্রিক ইঞ্জিন (সামনে)',
+  };
+
+  const formattedPassengerCoaches: Coach[] = orderedPassengerCoaches.map((c, index) => ({
+    ...c,
+    positionFromFront: index + 2, // 2 to 17
+  }));
+
+  return [locomotiveCoach, ...formattedPassengerCoaches];
 }
 
 const NETWORK_MAP: Record<string, [number, number][]> = {};

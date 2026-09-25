@@ -26,8 +26,8 @@ export const TrainListSidebar: React.FC<TrainListSidebarProps> = ({
   const isLight = theme === 'light';
 
   const filteredStatuses = statuses.filter((st) => {
-    const { train, isActive, predictiveDelay } = st;
-    if (onlyActive && !isActive) return false;
+    const { train, isActive, predictiveDelay, isOffDay } = st;
+    if (onlyActive && (!isActive || isOffDay)) return false;
     if (onlyDelayed && (!predictiveDelay || !predictiveDelay.isLate)) return false;
     if (selectedZone !== 'all' && train.zone !== selectedZone) return false;
 
@@ -45,8 +45,8 @@ export const TrainListSidebar: React.FC<TrainListSidebarProps> = ({
     return true;
   });
 
-  const activeCount = statuses.filter((s) => s.isActive).length;
-  const lateCount = statuses.filter((s) => s.isActive && s.predictiveDelay?.isLate).length;
+  const activeCount = statuses.filter((s) => s.isActive && !s.isOffDay).length;
+  const lateCount = statuses.filter((s) => s.isActive && !s.isOffDay && s.predictiveDelay?.isLate).length;
 
   return (
     <div
@@ -269,12 +269,16 @@ export const TrainListSidebar: React.FC<TrainListSidebarProps> = ({
                         ? isLight
                           ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
                           : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : st.isOffDay
+                        ? isLight
+                          ? 'bg-rose-100 text-rose-700 border border-rose-300 font-bold'
+                          : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold'
                         : isLight
                         ? 'bg-slate-200 text-slate-600'
                         : 'bg-slate-800 text-slate-400'
                     }`}
                   >
-                    {isActive ? `${toBengaliNumber(speedKmH)} কিমি/ঘ` : 'অফলাইন'}
+                    {isActive ? `${toBengaliNumber(speedKmH)} কিমি/ঘ` : st.isOffDay ? 'সাপ্তাহিক ছুটি' : 'অফলাইন'}
                   </span>
                 </div>
 
@@ -328,7 +332,9 @@ export const TrainListSidebar: React.FC<TrainListSidebarProps> = ({
                   </span>
 
                   <div className="flex items-center gap-2 shrink-0 ml-1">
-                    <span className="text-slate-400 hidden sm:inline">ছুটি: {train.offDayBn}</span>
+                    <span className={`hidden sm:inline ${st.isOffDay ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-400'}`}>
+                      ছুটি: {train.offDayBn}
+                    </span>
                     {onOpenTicketBooking && (
                       <button
                         onClick={(e) => {

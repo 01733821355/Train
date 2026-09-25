@@ -159,6 +159,39 @@ export const AutonomousTrafficMonitor: React.FC<AutonomousTrafficMonitorProps> =
           </span>
         </div>
       </div>
+
+      {/* Live Railway Signal Bar */}
+      {selectedStatus?.currentSignalNameBn && (
+        <div
+          className={`px-3 py-1.5 rounded-xl border flex items-center justify-between gap-2 text-xs ${
+            isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/90 border-slate-800'
+          }`}
+        >
+          <div className="flex items-center gap-2 truncate">
+            <span
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                selectedStatus.signalAspect === 'RED'
+                  ? 'bg-rose-500 animate-pulse'
+                  : selectedStatus.signalAspect === 'YELLOW' || selectedStatus.signalAspect === 'DOUBLE_YELLOW'
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-emerald-500'
+              }`}
+            />
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0 font-medium">
+              লাইভ রেলওয়ে সিগন্যাল:
+            </span>
+            <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+              {selectedStatus.currentSignalNameBn}
+            </span>
+          </div>
+
+          {selectedStatus.isCrowdsourcedGpsCalibrated && (
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+              🛰️ যাত্রী GPS অ্যাক্টিভ
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

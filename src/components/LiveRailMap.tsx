@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import L from 'leaflet';
-import { Station, LiveTrainStatus, ScreenCustomizationSettings, DEFAULT_SCREEN_SETTINGS } from '../types';
+import { Station, LiveTrainStatus, ScreenCustomizationSettings, DEFAULT_SCREEN_SETTINGS, OnboardTripState } from '../types';
 import { BANGLADESH_STATIONS } from '../data/stations';
 import {
   BANGLADESH_RAIL_NETWORK,
@@ -9,7 +9,8 @@ import {
   InlineRailLandmark,
   RailLineSegment,
 } from '../data/railNetwork';
-import { toBengaliNumber, calculateDistanceKm, getTrackSegmentOfLength, getTrailingWagonPositions } from '../utils/geoUtils';
+import { toBengaliNumber, calculateDistanceKm, getTrackSegmentOfLength, getTrailingWagonPositions, sliceCoords } from '../utils/geoUtils';
+import { Language } from '../utils/i18n';
 import { UpcomingStopsTimeline } from './UpcomingStopsTimeline';
 import { UserProximityCard } from './UserProximityCard';
 import {
@@ -38,6 +39,7 @@ import {
   Anchor,
   X,
   ExternalLink,
+  BellRing,
 } from 'lucide-react';
 
 interface LiveRailMapProps {
@@ -46,6 +48,12 @@ interface LiveRailMapProps {
   onSelectTrain: (trainId: string) => void;
   onSelectStation: (station: Station) => void;
   theme: 'light' | 'dark';
+  lang?: Language;
+  tripState?: OnboardTripState | null;
+  onOpenOnboardModal?: () => void;
+  onAlarmTriggered?: () => void;
+  onAlarmDismissed?: () => void;
+  onEndTrip?: () => void;
   onOpenTrafficScanner?: () => void;
   onTimeShift?: (minutes: number) => void;
   onOpenTicketBooking?: (trainId?: string) => void;
@@ -77,6 +85,12 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
   onSelectTrain,
   onSelectStation,
   theme,
+  lang = 'bn',
+  tripState,
+  onOpenOnboardModal,
+  onAlarmTriggered,
+  onAlarmDismissed,
+  onEndTrip,
   onOpenTrafficScanner,
   onTimeShift,
   onOpenTicketBooking,
@@ -95,6 +109,8 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
   const routesLayerRef = useRef<L.LayerGroup | null>(null);
   const landmarksLayerRef = useRef<L.LayerGroup | null>(null);
   const userLocationLayerRef = useRef<L.LayerGroup | null>(null);
+  const tripRouteLayerRef = useRef<L.LayerGroup | null>(null);
+  const lastSelectedTrainRef = useRef<string | null>(null);
 
   const effectiveSettings = settings || DEFAULT_SCREEN_SETTINGS;
   const [soloFocusOverride, setSoloFocusOverride] = useState<boolean | null>(null);
@@ -126,8 +142,8 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     }
   };
   const [railMappingMode, setRailMappingMode] = useState<'geo' | 'schematic'>('geo');
-  const [highlightInLinePlaces, setHighlightInLinePlaces] = useState(true);
-  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+  const [highlightInLinePlaces, setHighlightInLinePlaces] = useState(false);
+  const [activeDockMenu, setActiveDockMenu] = useState<'layer' | 'legend' | null>(null);
   const [selectedLandmark, setSelectedLandmark] = useState<InlineRailLandmark | null>(null);
   const [mapZoom, setMapZoom] = useState<number>(8);
 
@@ -220,6 +236,7 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     landmarksLayerRef.current = L.layerGroup().addTo(map);
     trainMarkersLayerRef.current = L.layerGroup().addTo(map);
     userLocationLayerRef.current = L.layerGroup().addTo(map);
+    tripRouteLayerRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
@@ -471,8 +488,8 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
       }
     });
 
-    // Render Highlighted In-Line Railway Landmarks, Junctions & Bridges
-    if (highlightInLinePlaces && landmarksLayerRef.current) {
+    // Render Highlighted In-Line Railway Landmarks, Junctions & Bridges ONLY if explicitly enabled AND zoomed in
+    if (highlightInLinePlaces && landmarksLayerRef.current && mapZoom >= 11) {
       INLINE_RAIL_LANDMARKS.forEach((landmark) => {
         const icon =
           landmark.category === 'bridge'
@@ -608,8 +625,22 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     trainStatuses.forEach((status) => {
       const isSelected = selectedTrainId === status.train.id;
 
-      // SOLO TRAIN FOCUS: When a train is selected and solo train mode is active, hide all other trains from the map!
+      // 1. Off-Day Train Exclusion:
+      // If today is this train's weekly off-day (সাপ্তাহিক ছুটি), it does NOT operate today and must NEVER be placed on the railway track!
+      if (status.isOffDay) {
+        return;
+      }
+
+      // 2. Solo Train Focus:
+      // When a train is selected and solo train mode is active, hide all other trains from the map!
       if (effectiveSoloMode && selectedTrainId && status.train.id !== selectedTrainId) {
+        return;
+      }
+
+      // 3. Inactive Trains Exclusion:
+      // Inactive trains that have not departed yet or have already finished their trip are parked at yards and NOT running on the tracks.
+      // We only show active trains running on the tracks, unless specifically selected by the user.
+      if (!status.isActive && !isSelected) {
         return;
       }
 
@@ -760,20 +791,26 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
         dotColor = 'bg-rose-500';
       }
 
+      const showNameBadge = isSelected || effectiveSoloMode || mapZoom >= 10;
+
       const trainIconHtml = `
         <div class="relative flex items-center justify-center cursor-pointer transition-transform duration-200 ${
           isSelected ? 'scale-110 z-50' : 'hover:scale-105 z-30'
         }">
-          <!-- Train Name Pin directly ABOVE the marker -->
-          <div class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-40 select-none">
-            <div class="px-1.5 py-0.5 rounded-md text-[9px] font-black shadow-md border flex items-center gap-1 leading-none ${
-              isLight ? 'bg-white/95 text-slate-900 border-slate-300' : 'bg-slate-950/95 text-white border-slate-700'
-            }">
-              <span class="w-1.5 h-1.5 rounded-full ${status.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
-              <span>${train.nameBn}</span>
-              <span class="text-[8px] opacity-75 font-mono">(${train.number})</span>
-            </div>
-          </div>
+          <!-- Train Name Pin directly ABOVE the marker (only when zoomed in, selected, or solo mode) -->
+          ${
+            showNameBadge
+              ? `<div class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-40 select-none">
+                  <div class="px-1.5 py-0.5 rounded-md text-[9px] font-black shadow-md border flex items-center gap-1 leading-none ${
+                    isLight ? 'bg-white/95 text-slate-900 border-slate-300' : 'bg-slate-950/95 text-white border-slate-700'
+                  }">
+                    <span class="w-1.5 h-1.5 rounded-full ${status.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
+                    <span>${train.nameBn}</span>
+                    <span class="text-[8px] opacity-75 font-mono">(${train.number})</span>
+                  </div>
+                </div>`
+              : ''
+          }
 
           <!-- Radar Pulse Effect -->
           ${
@@ -824,8 +861,14 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           <div class="text-xs space-y-1 text-slate-700">
             <p><strong>বর্তমান সেকশন:</strong> ${status.currentBlockSectionBn}</p>
             <p><strong>লাইভ গতি:</strong> <span class="text-blue-600 font-bold">${toBengaliNumber(speedKmH)} কিমি/ঘণ্টা</span></p>
+            <p><strong>রেল সিগন্যাল:</strong> <span class="text-emerald-700 font-bold">${status.currentSignalNameBn}</span></p>
             <p><strong>পরবর্তী স্টেশন:</strong> ${status.nextStation ? status.nextStation.nameBn : 'পৌঁছেছে'}</p>
             <p><strong>সম্ভাব্য আগমন:</strong> ${status.etaNextStation}</p>
+            ${
+              status.isCrowdsourcedGpsCalibrated
+                ? `<p class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">🛰️ যাত্রীর লাইভ GPS দ্বারা ট্রেনের গতিপথ নিখুঁতভাবে সমন্বিত</p>`
+                : ''
+            }
           </div>
 
           <div class="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
@@ -871,20 +914,94 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     showOpenRailwayOverlay,
   ]);
 
-  // 6. Smooth Pan to Selected Train
+  // 6. Smooth Pan to Selected Train: ONLY on explicit selection change
   useEffect(() => {
-    if (!selectedTrainId || !mapInstanceRef.current) return;
-    const currentStatus = trainStatuses.find((s) => s.train.id === selectedTrainId);
-    if (currentStatus) {
-      mapInstanceRef.current.flyTo([currentStatus.currentLat, currentStatus.currentLng], 11, {
-        duration: 1.2,
-      });
+    if (!selectedTrainId || !mapInstanceRef.current) {
+      lastSelectedTrainRef.current = selectedTrainId;
+      return;
     }
-  }, [selectedTrainId, trainStatuses]);
+    if (selectedTrainId !== lastSelectedTrainRef.current) {
+      lastSelectedTrainRef.current = selectedTrainId;
+      const currentStatus = trainStatuses.find((s) => s.train.id === selectedTrainId);
+      if (currentStatus) {
+        mapInstanceRef.current.flyTo([currentStatus.currentLat, currentStatus.currentLng], 11, {
+          duration: 1.2,
+        });
+      }
+    }
+  }, [selectedTrainId]);
+
+  // 6.5 On-board Trip Route Highlight & Proximity Alarm Monitor
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    if (!tripRouteLayerRef.current) {
+      tripRouteLayerRef.current = L.layerGroup().addTo(mapInstanceRef.current);
+    }
+    tripRouteLayerRef.current.clearLayers();
+
+    if (!tripState || !tripState.isActive) return;
+
+    const currentTrainStatus = trainStatuses.find((s) => s.train.id === tripState.trainId);
+    if (!currentTrainStatus) return;
+
+    // Check alarm trigger distance using user-configured distance (default 2.0 km)
+    const thresholdKm = tripState.alarmDistanceKm || 2.0;
+    const distToDestKm = calculateDistanceKm(
+      currentTrainStatus.currentLat,
+      currentTrainStatus.currentLng,
+      tripState.destLat,
+      tripState.destLng
+    );
+
+    if (distToDestKm <= thresholdKm && !tripState.alarmTriggered && onAlarmTriggered) {
+      onAlarmTriggered();
+    }
+
+    // Highlight route to destination
+    const routeCoords = currentTrainStatus.train.routeCoordinates;
+    const sliced = sliceCoords(
+      routeCoords,
+      currentTrainStatus.currentLat,
+      currentTrainStatus.currentLng,
+      tripState.destLat,
+      tripState.destLng
+    );
+    const highlightPath =
+      sliced && sliced.length > 1
+        ? sliced
+        : [[currentTrainStatus.currentLat, currentTrainStatus.currentLng], [tripState.destLat, tripState.destLng]];
+
+    // Glowing vibrant amber path with golden glow
+    L.polyline(highlightPath as [number, number][], {
+      color: '#f59e0b',
+      weight: 6,
+      opacity: 0.95,
+      dashArray: '8, 8',
+      lineCap: 'round',
+    }).addTo(tripRouteLayerRef.current);
+
+    // Destination Pin Flag
+    const destName = lang === 'bn' ? tripState.destinationStationNameBn : tripState.destinationStationNameEn;
+    const destHtml = `
+      <div class="relative flex items-center justify-center pointer-events-none">
+        <div class="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-black text-[11px] shadow-xl flex items-center gap-1.5 border-2 border-white whitespace-nowrap animate-bounce">
+          <span>🚩</span>
+          <span>${destName}</span>
+        </div>
+      </div>
+    `;
+    const destIcon = L.divIcon({
+      className: 'dest-flag-pin',
+      html: destHtml,
+      iconSize: [96, 28],
+      iconAnchor: [48, 14],
+    });
+    L.marker([tripState.destLat, tripState.destLng], { icon: destIcon }).addTo(tripRouteLayerRef.current);
+  }, [tripState, trainStatuses, lang, onAlarmTriggered]);
 
   // 7. Auto-Scan / Cycle Through Active Trains
   const handleScanNextActiveTrain = () => {
-    const activeTrains = trainStatuses.filter((s) => s.isActive);
+    const activeTrains = trainStatuses.filter((s) => s.isActive && !s.isOffDay);
     if (activeTrains.length === 0) return;
 
     const nextIndex = (activeTrainIndex + 1) % activeTrains.length;
@@ -897,7 +1014,7 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     }
   };
 
-  // 8. User Geolocation Handler: Triggered strictly by Location Button tap
+  // 8. User Geolocation Handler: Triggered strictly by Location Button tap (stays where map is)
   const handleToggleLocateUser = () => {
     // If location is already active, tapping the button turns it off
     if (userLocation) {
@@ -910,7 +1027,7 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     }
 
     if (!navigator.geolocation) {
-      setLocationError('আপনার ব্রাউজারে লোকেশন সনাক্তকরণ সুবিধা নেই');
+      setLocationError(lang === 'bn' ? 'আপনার ব্রাউজারে লোকেশন সনাক্তকরণ সুবিধা নেই' : 'Geolocation is not supported by your browser');
       return;
     }
 
@@ -978,16 +1095,16 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           );
 
           userMarker.bindTooltip(
-            `<div class="p-1 text-xs font-bold text-blue-600 font-sans">আপনার বর্তমান অবস্থান</div>`,
+            `<div class="p-1 text-xs font-bold text-blue-600 font-sans">${lang === 'bn' ? 'আপনার বর্তমান অবস্থান' : 'Your Location'}</div>`,
             { permanent: false, direction: 'top' }
           );
 
-          mapInstanceRef.current.flyTo([userLat, userLng], 11, { duration: 1.5 });
+          // Note: map is intentionally NOT auto-moved, honoring user requirement to keep viewport steady
         }
       },
       (err) => {
         setIsLocating(false);
-        setLocationError('লোকেশন এক্সেস পাওয়া যায়নি (ব্রাউজারে লোকেশন অনুমতি দিন)');
+        setLocationError(lang === 'bn' ? 'লোকেশন এক্সেস পাওয়া যায়নি (ব্রাউজারে লোকেশন অনুমতি দিন)' : 'Location permission denied');
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
@@ -1034,7 +1151,19 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
     });
   }, [trainStatuses, selectedTrainId]);
 
-  const activeTrainsCount = trainStatuses.filter((s) => s.isActive).length;
+  const activeTrainsCount = trainStatuses.filter((s) => s.isActive && !s.isOffDay).length;
+
+  const liveTripDistKm = useMemo(() => {
+    if (!tripState || !tripState.isActive) return null;
+    const currentTrainStatus = trainStatuses.find((s) => s.train.id === tripState.trainId);
+    if (!currentTrainStatus) return null;
+    return calculateDistanceKm(
+      currentTrainStatus.currentLat,
+      currentTrainStatus.currentLng,
+      tripState.destLat,
+      tripState.destLng
+    );
+  }, [tripState, trainStatuses]);
 
   return (
     <div
@@ -1045,57 +1174,175 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
       {/* Map Container */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-      {/* 1. Solo Train Track Mode Banner (Top Left) */}
-      {selectedStatus && (
-        <div className="absolute top-3 left-3 z-30 pointer-events-auto flex items-center gap-2 flex-wrap max-w-[calc(100%-140px)] sm:max-w-md">
-          <div
-            className={`px-3 py-1.5 rounded-xl border shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-bold transition-all ${
-              effectiveSoloMode
-                ? 'bg-emerald-600/95 text-white border-emerald-400 ring-2 ring-emerald-500/30'
+      {/* 0. Urgent Arrival Alarm Banner when approaching destination */}
+      {tripState?.isActive && tripState.alarmTriggered && !tripState.alarmDismissed && (
+        <div className="absolute top-2 left-2 right-2 sm:left-4 sm:right-4 z-50 p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-900/98 via-red-900/98 to-rose-950/98 border-2 border-rose-500 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 animate-in zoom-in-95 duration-200">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-rose-600 flex items-center justify-center text-white shrink-0 shadow-lg animate-bounce">
+              <BellRing className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                  গন্তব্য স্টেশন এসে গেছে!
+                </span>
+                {liveTripDistKm !== null && (
+                  <span className="text-xs font-mono text-rose-200">
+                    দূরত্ব: {toBengaliNumber(Math.round(liveTripDistKm * 10) / 10)} কিমি
+                  </span>
+                )}
+              </div>
+              <h3 className="text-xs sm:text-base font-extrabold text-white truncate mt-0.5">
+                আপনার গন্তব্য স্টেশন {tripState.destinationStationNameBn} এসে গেছে!
+              </h3>
+              <p className="text-[11px] text-rose-200 truncate">
+                নামার প্রস্তুতি নিন ও ব্যক্তিগত মালামাল সাথে রাখুন।
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onAlarmDismissed?.()}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 text-rose-950 font-black text-xs sm:text-sm shadow-xl transition-all cursor-pointer shrink-0"
+          >
+            অ্যালার্ম বন্ধ করুন
+          </button>
+        </div>
+      )}
+
+      {/* 1. Main Display Floating Control Island (Top-Left / Center) */}
+      <div className="absolute top-2.5 left-2.5 z-30 pointer-events-auto flex items-center gap-1.5 sm:gap-2 flex-wrap max-w-[calc(100%-145px)] sm:max-w-none">
+        {/* All vs Solo Train Toggle Pill */}
+        <div
+          className={`flex items-center p-1 rounded-2xl border shadow-xl backdrop-blur-md transition-all ${
+            isLight ? 'bg-white/95 border-slate-300' : 'bg-slate-900/95 border-slate-700'
+          }`}
+        >
+          {/* সকল ট্রেন */}
+          <button
+            type="button"
+            id="all-trains-mode-btn"
+            onClick={() => {
+              setSoloFocusOverride(false);
+              if (onUpdateSettings && settings) {
+                onUpdateSettings({ ...settings, showSoloTrainFocus: false });
+              }
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              !effectiveSoloMode
+                ? 'bg-emerald-600 text-white shadow-md'
                 : isLight
-                ? 'bg-white/95 border-slate-300 text-slate-800'
-                : 'bg-slate-900/95 border-slate-700 text-white'
+                ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+            title="ম্যাপে সকল চলমান ট্রেন দৃশ্যমান করুন"
+          >
+            <TrainIcon className="w-3.5 h-3.5" />
+            <span>সকল ট্রেন ({activeTrainsCount})</span>
+          </button>
+
+          {/* একক ট্রেন */}
+          <button
+            type="button"
+            id="solo-train-mode-btn"
+            onClick={() => {
+              setSoloFocusOverride(true);
+              if (!selectedTrainId && trainStatuses.length > 0) {
+                const firstActive = trainStatuses.find((s) => s.isActive && !s.isOffDay) || trainStatuses[0];
+                if (firstActive) onSelectTrain(firstActive.train.id);
+              }
+              if (onUpdateSettings && settings) {
+                onUpdateSettings({ ...settings, showSoloTrainFocus: true });
+              }
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              effectiveSoloMode
+                ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/40'
+                : isLight
+                ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+            title="শুধুমাত্র নির্বাচিত ট্রেনটি দেখে অন্য সব ট্রেন লুকান"
+          >
+            <Target className="w-3.5 h-3.5" />
+            <span>একক ট্রেন</span>
+          </button>
+        </div>
+
+        {/* "আমি এই ট্রেনে আছি" Button (Prominently displayed) */}
+        <button
+          type="button"
+          id="onboard-trip-main-btn"
+          onClick={() => onOpenOnboardModal?.()}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border text-xs font-extrabold shadow-xl backdrop-blur-md transition-all cursor-pointer ${
+            tripState?.isActive
+              ? 'bg-emerald-600 text-white border-emerald-400 shadow-emerald-600/40 ring-2 ring-emerald-400/50'
+              : isLight
+              ? 'bg-white/95 text-slate-800 border-slate-300 hover:bg-emerald-50 hover:border-emerald-400'
+              : 'bg-slate-900/95 text-slate-100 border-slate-700 hover:bg-slate-800 hover:border-emerald-500'
+          }`}
+          title="আমি এই ট্রেনে আছি — গন্তব্য স্টেশন নির্বাচন করুন ও অ্যালার্ম সেট করুন"
+        >
+          <BellRing className={`w-3.5 h-3.5 ${tripState?.isActive ? 'text-white animate-bounce' : 'text-emerald-500'}`} />
+          <span>
+            {tripState?.isActive
+              ? `ট্রিপ: ${tripState.destinationStationNameBn}`
+              : 'আমি এই ট্রেনে আছি'}
+          </span>
+          {tripState?.isActive && liveTripDistKm !== null && (
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/20 text-white font-bold ml-0.5">
+              {toBengaliNumber(Math.round(liveTripDistKm * 10) / 10)} কিমি
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Solo Train Info Ribbon (when solo mode is active) */}
+      {effectiveSoloMode && selectedStatus && (
+        <div className="absolute top-14 left-2.5 z-20 pointer-events-auto flex items-center gap-2 max-w-[calc(100%-20px)] sm:max-w-md animate-in slide-in-from-top-1 duration-150">
+          <div
+            className={`px-3 py-1 rounded-xl border shadow-xl backdrop-blur-md flex items-center gap-2 text-xs font-bold ${
+              isLight ? 'bg-white/95 border-emerald-400 text-slate-800' : 'bg-slate-900/95 border-emerald-500 text-white'
             }`}
           >
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-              <span className="truncate">{selectedStatus.train.nameBn}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/20 text-white font-extrabold">
-                {selectedStatus.train.number}
-              </span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="truncate">{selectedStatus.train.nameBn}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 font-extrabold shrink-0">
+              {selectedStatus.train.number}
+            </span>
+            <div className="h-3.5 w-px bg-slate-300 dark:bg-slate-700 shrink-0" />
+            <button
+              type="button"
+              onClick={() => {
+                setSoloFocusOverride(false);
+                if (onUpdateSettings && settings) onUpdateSettings({ ...settings, showSoloTrainFocus: false });
+              }}
+              className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-extrabold shrink-0 cursor-pointer"
+            >
+              সকল ট্রেন দেখান
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Off-Day Alert Banner for Selected Train */}
+      {selectedStatus && selectedStatus.isOffDay && (
+        <div className="absolute top-14 left-3 z-30 pointer-events-auto max-w-[calc(100%-24px)] sm:max-w-md animate-in slide-in-from-top-2 duration-200">
+          <div className="p-2.5 sm:p-3 rounded-2xl border border-rose-500/60 bg-rose-950/95 text-white shadow-2xl backdrop-blur-md flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center shrink-0 text-rose-400">
+              <AlertTriangle className="w-4 h-4" />
             </div>
-
-            <div className="h-3.5 w-px bg-white/40" />
-
-            {effectiveSoloMode ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSoloFocusOverride(false);
-                  if (onUpdateSettings && settings) {
-                    onUpdateSettings({ ...settings, showSoloTrainFocus: false });
-                  }
-                }}
-                className="px-2 py-0.5 rounded-lg bg-white/20 hover:bg-white/30 text-[10px] text-white font-extrabold cursor-pointer transition-all whitespace-nowrap"
-                title="ম্যাপে অন্যান্য সকল ট্রেন পুনরায় দৃশ্যমান করুন"
-              >
-                সকল ট্রেন দেখান
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setSoloFocusOverride(true);
-                  if (onUpdateSettings && settings) {
-                    onUpdateSettings({ ...settings, showSoloTrainFocus: true });
-                  }
-                }}
-                className="px-2 py-0.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-[10px] text-white font-extrabold cursor-pointer transition-all whitespace-nowrap"
-                title="শুধুমাত্র এই ট্রেনটি রেখে অন্য সব ট্রেন লুকান"
-              >
-                একক ট্রেন মোড
-              </button>
-            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-rose-200 truncate">{selectedStatus.train.nameBn}</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-900 text-rose-200 font-bold shrink-0">
+                  {selectedStatus.train.number}
+                </span>
+              </div>
+              <p className="text-[11px] text-rose-300 mt-0.5 leading-snug">
+                আজ সাপ্তাহিক ছুটি ({selectedStatus.train.offDayBn}) — ট্রেনটি আজ রেললাইন বা ট্র্যাকে চলাচল করছে না।
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -1128,255 +1375,101 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
         </div>
       )}
 
-      {/* Top Map Action Bar */}
-      <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 sm:gap-2 pointer-events-auto flex-wrap justify-end">
-        {/* Rail Mapping Mode Switcher: High-Accuracy Geo-Alignment vs Schematic Mode */}
-        <div
-          className={`flex items-center rounded-xl p-1 shadow-lg border backdrop-blur-md ${
-            isLight
-              ? 'bg-white/95 border-slate-300 text-slate-800'
-              : 'bg-slate-900/95 border-slate-800 text-slate-100'
-          }`}
-        >
-          <button
-            id="rail-geo-mode-btn"
-            onClick={() => setRailMappingMode('geo')}
-            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              railMappingMode === 'geo'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-            title="উচ্চ-নির্ভুল জিও-অ্যালাইনমেন্ট মোড: বাস্তব GPS বাঁক ও নির্ভুল ট্র্যাক"
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">উচ্চ-নির্ভুল জিও</span>
-            <span className="sm:hidden">জিও</span>
-          </button>
-          <button
-            id="rail-schematic-mode-btn"
-            onClick={() => setRailMappingMode('schematic')}
-            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              railMappingMode === 'schematic'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-            title="স্কিম্যাটিক মোড: পরিষ্কার ট্রানজিট মেট্রো-স্টাইল করিডোর ভিউ"
-          >
-            <Route className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">স্কিম্যাটিক মোড</span>
-            <span className="sm:hidden">স্কিম্যাটিক</span>
-          </button>
-        </div>
-
-        {/* LiveRailMap Settings Popover */}
+      {/* Top Map Floating Mini Action Dock */}
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-1 sm:gap-1.5 pointer-events-auto">
+        {/* 1. Map Layers & Track Settings Popover Button */}
         <div className="relative">
           <button
-            id="rail-settings-toggle-btn"
-            onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
-            className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
-              showSettingsDropdown
-                ? 'bg-slate-800 text-white border-slate-700 dark:bg-slate-100 dark:text-slate-900'
+            id="rail-layer-dock-btn"
+            onClick={() => setActiveDockMenu(activeDockMenu === 'layer' ? null : 'layer')}
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
+              activeDockMenu === 'layer'
+                ? 'bg-blue-600 text-white border-blue-500 ring-2 ring-blue-400/50'
                 : isLight
-                ? 'bg-white/90 text-slate-700 border-slate-300 hover:bg-slate-100'
-                : 'bg-slate-900/90 text-slate-300 border-slate-800 hover:bg-slate-800'
+                ? 'bg-white/95 text-slate-700 border-slate-300 hover:bg-slate-100'
+                : 'bg-slate-900/95 text-slate-300 border-slate-800 hover:bg-slate-800'
             }`}
-            title="লাইভ রেল ম্যাপ ডিসপ্লে সেটিংস"
+            title={lang === 'bn' ? 'ম্যাপ লেয়ার ও ট্র্যাক অপশন' : 'Map Layers & Track Options'}
           >
-            <Sliders className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">সেটিংস</span>
+            <Layers className="w-4 h-4" />
           </button>
 
-          {showSettingsDropdown && (
+          {activeDockMenu === 'layer' && (
             <div
-              id="rail-settings-dropdown-menu"
-              className={`absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl border shadow-2xl backdrop-blur-xl p-3.5 z-50 text-xs space-y-3 animate-in fade-in-50 zoom-in-95 duration-150 ${
-                isLight
-                  ? 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-400/30'
-                  : 'bg-slate-900/95 border-slate-800 text-slate-100 shadow-black/70'
+              className={`absolute right-0 mt-2 w-64 rounded-2xl border shadow-2xl backdrop-blur-xl p-3 z-50 text-xs space-y-3 animate-in fade-in-50 zoom-in-95 duration-150 ${
+                isLight ? 'bg-white/98 border-slate-200 text-slate-800' : 'bg-slate-900/98 border-slate-800 text-slate-100'
               }`}
             >
               <div className="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
-                  <Sliders className="w-4 h-4 text-blue-500" />
-                  <span>রেল ম্যাপ ও ট্র্যাক সেটিংস</span>
+                <div className="flex items-center gap-1.5 font-bold">
+                  <Layers className="w-3.5 h-3.5 text-blue-500" />
+                  <span>{lang === 'bn' ? 'ম্যাপ ও ট্র্যাক লেয়ার' : 'Map & Track Layers'}</span>
                 </div>
                 <button
-                  onClick={() => setShowSettingsDropdown(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1"
+                  onClick={() => setActiveDockMenu(null)}
+                  className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Mode Selection */}
-              <div className="space-y-1.5">
-                <label className="font-semibold text-slate-600 dark:text-slate-400 text-[11px] block">
-                  রেললাইন ম্যাপিং মোড
-                </label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={() => setRailMappingMode('geo')}
-                    className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
-                      railMappingMode === 'geo'
-                        ? 'bg-blue-50 border-blue-400 text-blue-900 dark:bg-blue-950/70 dark:border-blue-500 dark:text-blue-100 ring-2 ring-blue-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <div className="font-bold flex items-center gap-1 text-[11px]">
-                      <Compass className="w-3 h-3 text-blue-500" />
-                      <span>উচ্চ-নির্ভুল জিও</span>
-                    </div>
-                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                      বাস্তব GPS ট্র্যাক ও নির্ভুল বাঁক
-                    </p>
-                  </button>
-
-                  <button
-                    onClick={() => setRailMappingMode('schematic')}
-                    className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
-                      railMappingMode === 'schematic'
-                        ? 'bg-indigo-50 border-indigo-400 text-indigo-900 dark:bg-indigo-950/70 dark:border-indigo-500 dark:text-indigo-100 ring-2 ring-indigo-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <div className="font-bold flex items-center gap-1 text-[11px]">
-                      <Route className="w-3 h-3 text-indigo-500" />
-                      <span>স্কিম্যাটিক মোড</span>
-                    </div>
-                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                      মেট্রো-স্টাইল ট্রানজিট করিডোর ভিউ
-                    </p>
-                  </button>
-                </div>
-              </div>
-
-              {/* In-Line Place Highlighting Toggle */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-[11px] flex items-center gap-1 text-slate-900 dark:text-white">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>ইন-লাইন স্থানের নাম হাইলাইট</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    আইকনিক রেল সেতু, জংশন ও টার্মিনাল ব্যাজ
-                  </p>
-                </div>
-                <button
-                  onClick={() => setHighlightInLinePlaces(!highlightInLinePlaces)}
-                  className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    highlightInLinePlaces ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
-                  }`}
-                >
-                  <span
-                    className={`block w-4 h-4 rounded-full bg-white shadow-md transform transition-transform ${
-                      highlightInLinePlaces ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* OpenRailwayMap GIS Overlay Toggle */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-[11px] flex items-center gap-1 text-slate-900 dark:text-white">
-                    <Layers className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>OpenRailway GIS ট্র্যাক (ডিফল্ট)</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    বাস্তব ১০০% নির্ভুল ভৌত রেললাইন ট্র্যাক ওভারলে
-                  </p>
-                </div>
-                <button
-                  onClick={handleToggleRailwayOverlay}
-                  className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    showOpenRailwayOverlay ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
-                  }`}
-                >
-                  <span
-                    className={`block w-4 h-4 rounded-full bg-white shadow-md transform transition-transform ${
-                      showOpenRailwayOverlay ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Map Legend Toggle */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-[11px] flex items-center gap-1 text-slate-900 dark:text-white">
-                    <Info className="w-3.5 h-3.5 text-blue-500" />
-                    <span>ম্যাপ কালার লেজেন্ড</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    রুট করিডোর ও জোন কালার নির্দেশিকা
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowLegend(!showLegend)}
-                  className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    showLegend ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
-                  }`}
-                >
-                  <span
-                    className={`block w-4 h-4 rounded-full bg-white shadow-md transform transition-transform ${
-                      showLegend ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Upcoming Stops Timeline Toggle */}
-              {onUpdateSettings && settings && (
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-[11px] flex items-center gap-1 text-slate-900 dark:text-white">
-                      <Clock className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>পরবর্তী স্টপেজ টাইমলাইন</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                      নির্বাচিত ট্রেনের স্টপেজ সময়সূচী
-                    </p>
-                  </div>
-                  <button
-                    onClick={() =>
-                      onUpdateSettings({
-                        ...settings,
-                        showUpcomingStopsTimeline: !settings.showUpcomingStopsTimeline,
-                      })
-                    }
-                    className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${
-                      settings.showUpcomingStopsTimeline ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                    }`}
-                  >
-                    <span
-                      className={`block w-4 h-4 rounded-full bg-white shadow-md transform transition-transform ${
-                        settings.showUpcomingStopsTimeline ? 'translate-x-5' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-              )}
-
-              {/* Quick Jump Landmark Spotlight */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
-                <label className="font-semibold text-slate-600 dark:text-slate-400 text-[11px] block">
-                  গুরুত্বপূর্ণ রেলওয়ে পয়েন্ট ও সেতুতে যান
-                </label>
-                <div className="flex flex-wrap gap-1">
-                  {INLINE_RAIL_LANDMARKS.slice(0, 8).map((lm) => (
+              {/* Map Type */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-semibold text-slate-500">{lang === 'bn' ? 'ম্যাপের ধরন' : 'Map Style'}</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {(['google-roadmap', 'google-hybrid', 'google-traffic'] as const).map((prov) => (
                     <button
-                      key={lm.id}
+                      key={prov}
                       onClick={() => {
-                        setSelectedLandmark(lm);
-                        setShowSettingsDropdown(false);
-                        mapInstanceRef.current?.flyTo([lm.lat, lm.lng], 12, { duration: 1.2 });
+                        setMapProvider(prov);
+                        setActiveDockMenu(null);
                       }}
-                      className="px-2 py-0.5 rounded-lg border text-[10px] font-semibold hover:bg-slate-200 dark:hover:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+                      className={`px-2 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                        mapProvider === prov
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
                     >
-                      {lm.nameBn}
+                      {prov === 'google-roadmap' ? (lang === 'bn' ? 'ম্যাপ' : 'Map') : prov === 'google-hybrid' ? (lang === 'bn' ? 'স্যাটেলাইট' : 'Satellite') : (lang === 'bn' ? 'ট্রাফিক' : 'Traffic')}
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* OpenRailway GIS Overlay */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-[11px] font-medium">{lang === 'bn' ? 'OpenRailway GIS ট্র্যাক' : 'OpenRailway GIS Track'}</span>
+                <button
+                  onClick={() => {
+                    handleToggleRailwayOverlay();
+                    setActiveDockMenu(null);
+                  }}
+                  className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
+                    showOpenRailwayOverlay ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                >
+                  <span className={`block w-3.5 h-3.5 rounded-full bg-white shadow-sm transform transition-transform ${
+                    showOpenRailwayOverlay ? 'translate-x-4.5' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+
+              {/* In-Line Landmarks */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium">{lang === 'bn' ? 'সেতু ও জংশন ট্যাগ' : 'Landmark Tags'}</span>
+                <button
+                  onClick={() => {
+                    setHighlightInLinePlaces(!highlightInLinePlaces);
+                    setActiveDockMenu(null);
+                  }}
+                  className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
+                    highlightInLinePlaces ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                >
+                  <span className={`block w-3.5 h-3.5 rounded-full bg-white shadow-sm transform transition-transform ${
+                    highlightInLinePlaces ? 'translate-x-4.5' : 'translate-x-1'
+                  }`} />
+                </button>
               </div>
 
               {/* Full Screen Customization Button */}
@@ -1385,13 +1478,13 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowSettingsDropdown(false);
+                      setActiveDockMenu(null);
                       onOpenSettingsModal();
                     }}
-                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
+                    className="w-full py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer text-slate-800 dark:text-slate-100"
                   >
-                    <Sliders className="w-3.5 h-3.5" />
-                    <span>পূর্ণাঙ্গ স্ক্রিন কাস্টমাইজেশন</span>
+                    <Sliders className="w-3 h-3" />
+                    <span>{lang === 'bn' ? 'পূর্ণাঙ্গ সেটিংস' : 'Full Screen Settings'}</span>
                   </button>
                 </div>
               )}
@@ -1399,106 +1492,133 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           )}
         </div>
 
-        {/* Map Type Selector (Google Maps / Satellite / Traffic) */}
-        <div
-          className={`flex items-center rounded-xl p-1 shadow-lg border backdrop-blur-md ${
-            isLight
-              ? 'bg-white/95 border-slate-300 text-slate-800'
-              : 'bg-slate-900/95 border-slate-800 text-slate-100'
+        {/* 2. Mode Toggle: Geo vs Schematic (1-tap) */}
+        <button
+          id="rail-mode-dock-btn"
+          onClick={() => setRailMappingMode(railMappingMode === 'geo' ? 'schematic' : 'geo')}
+          className={`h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl flex items-center gap-1 shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
+            railMappingMode === 'geo'
+              ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700'
+              : 'bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-950/70 dark:text-indigo-300 dark:border-indigo-700'
           }`}
+          title={railMappingMode === 'geo' ? (lang === 'bn' ? 'বর্তমান: উচ্চ-নির্ভুল জিও মোড (ক্লিক করে স্কিম্যাটিকে যান)' : 'Current: Geo Mode (Click for Schematic)') : (lang === 'bn' ? 'বর্তমান: স্কিম্যাটিক মোড (ক্লিক করে জিওতে যান)' : 'Current: Schematic Mode (Click for Geo)')}
         >
-          <button
-            onClick={() => setMapProvider('google-roadmap')}
-            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              mapProvider === 'google-roadmap'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-            title="গুগল ম্যাপ সাধারণ মোড"
-          >
-            ম্যাপ
-          </button>
-          <button
-            onClick={() => setMapProvider('google-hybrid')}
-            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              mapProvider === 'google-hybrid'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-            title="গুগল স্যাটেলাইট ভিউ"
-          >
-            স্যাটেলাইট
-          </button>
-          <button
-            onClick={() => setMapProvider('google-traffic')}
-            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              mapProvider === 'google-traffic'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-            title="গুগল লাইভ ট্রাফিক লেয়ার"
-          >
-            ট্রাফিক
-          </button>
-        </div>
+          <Compass className="w-3.5 h-3.5" />
+          <span className="text-[11px] font-bold uppercase tracking-tight">
+            {railMappingMode === 'geo' ? 'GEO' : 'SCH'}
+          </span>
+        </button>
 
-        {/* E-Ticket Booking Button */}
+        {/* 3. My Location GPS Toggle (1-tap, never auto-moves viewport) */}
+        <button
+          id="user-gps-dock-btn"
+          onClick={handleToggleLocateUser}
+          disabled={isLocating}
+          className={`h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl flex items-center gap-1 shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
+            userLocation
+              ? 'bg-blue-600 text-white border-blue-500 shadow-blue-500/30 ring-2 ring-blue-400/50'
+              : isLight
+              ? 'bg-white/95 text-blue-700 border-slate-300 hover:bg-blue-50'
+              : 'bg-slate-900/95 text-blue-400 border-slate-800 hover:bg-slate-800'
+          }`}
+          title={userLocation ? (lang === 'bn' ? 'লোকেশন ও দূরত্ব বন্ধ করুন' : 'Turn off Location') : (lang === 'bn' ? 'আমার অবস্থান ও ট্রেনের দূরত্ব দেখুন' : 'View My Location & Train Distance')}
+        >
+          <LocateFixed className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : userLocation ? 'animate-pulse text-white' : 'text-blue-500'}`} />
+          <span className="text-[11px] font-bold">
+            {userLocation ? (lang === 'bn' ? 'অন' : 'ON') : (lang === 'bn' ? 'লোকেশন' : 'GPS')}
+          </span>
+        </button>
+
+        {/* 4. On-Board Trip / Alarm Button ("আমি এই ট্রেনে আছি") */}
+        <button
+          id="onboard-trip-dock-btn"
+          onClick={() => onOpenOnboardModal?.()}
+          className={`h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl flex items-center gap-1 shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
+            tripState?.isActive
+              ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/30 ring-2 ring-emerald-400/50'
+              : isLight
+              ? 'bg-white/95 text-slate-700 border-slate-300 hover:bg-emerald-50'
+              : 'bg-slate-900/95 text-slate-300 border-slate-800 hover:bg-slate-800'
+          }`}
+          title={lang === 'bn' ? 'আমি এই ট্রেনে আছি (গন্তব্য নির্বাচন ও অ্যালার্ম)' : 'I am on this train (Trip & Alarm)'}
+        >
+          <BellRing className={`w-3.5 h-3.5 ${tripState?.isActive ? 'text-white animate-bounce' : 'text-emerald-500'}`} />
+          <span className="text-[11px] font-bold hidden sm:inline">
+            {tripState?.isActive ? (lang === 'bn' ? 'ট্রিপ চলছে' : 'Active') : (lang === 'bn' ? 'অন-বোর্ড' : 'On-Board')}
+          </span>
+        </button>
+
+        {/* 5. E-Ticket Button */}
         {onOpenTicketBooking ? (
           <button
             onClick={() => onOpenTicketBooking()}
-            className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md transition-all cursor-pointer border bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500"
-            title="বাংলাদেশ রেলওয়ে ই-টিকেট কাটুন (eticket.railway.gov.bd)"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shadow-lg backdrop-blur-md transition-all cursor-pointer border bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500"
+            title={lang === 'bn' ? 'বাংলাদেশ রেলওয়ে ই-টিকেট কাটুন' : 'Buy Bangladesh Railway E-Ticket'}
           >
-            <Ticket className="w-3.5 h-3.5" />
-            <span className="font-bold">ই-টিকেট</span>
+            <Ticket className="w-4 h-4" />
           </button>
         ) : (
           <a
             href="https://eticket.railway.gov.bd/"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md transition-all cursor-pointer border bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 no-underline"
-            title="বাংলাদেশ রেলওয়ে ই-টিকেট কাটুন (eticket.railway.gov.bd)"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shadow-lg backdrop-blur-md transition-all cursor-pointer border bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 no-underline"
+            title={lang === 'bn' ? 'বাংলাদেশ রেলওয়ে ই-টিকেট কাটুন' : 'Buy Bangladesh Railway E-Ticket'}
           >
-            <Ticket className="w-3.5 h-3.5" />
-            <span className="font-bold">ই-টিকেট</span>
+            <Ticket className="w-4 h-4" />
           </a>
         )}
 
-        {/* User GPS Locate Me Button: Only shows distance & location when tapped */}
-        <button
-          id="user-gps-locate-btn"
-          onClick={handleToggleLocateUser}
-          disabled={isLocating}
-          className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
-            userLocation
-              ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-500 shadow-blue-500/30 ring-2 ring-blue-400/50'
-              : isLight
-              ? 'bg-white/95 text-blue-700 border-blue-200 hover:bg-blue-50'
-              : 'bg-slate-900/95 text-blue-400 border-slate-800 hover:bg-slate-800'
-          }`}
-          title={userLocation ? 'লোকেশন ও দূরত্ব বন্ধ করুন' : 'আমার লোকেশন ও নিকটবর্তী ট্রেন দেখুন'}
-        >
-          <LocateFixed
-            className={`w-3.5 h-3.5 ${
-              isLocating
-                ? 'animate-spin'
-                : userLocation
-                ? 'text-white animate-pulse'
-                : 'text-blue-500'
+        {/* 6. Info & Legend Dock Button */}
+        <div className="relative">
+          <button
+            id="rail-legend-dock-btn"
+            onClick={() => setActiveDockMenu(activeDockMenu === 'legend' ? null : 'legend')}
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shadow-lg backdrop-blur-md transition-all cursor-pointer border ${
+              activeDockMenu === 'legend'
+                ? 'bg-slate-800 text-white border-slate-700 dark:bg-white dark:text-slate-900'
+                : isLight
+                ? 'bg-white/95 text-slate-700 border-slate-300 hover:bg-slate-100'
+                : 'bg-slate-900/95 text-slate-300 border-slate-800 hover:bg-slate-800'
             }`}
-          />
-          <span className="hidden sm:inline">
-            {isLocating
-              ? 'খোঁজা হচ্ছে...'
-              : userLocation
-              ? 'লোকেশন সক্রিয় (বন্ধ)'
-              : 'আমার লোকেশন'}
-          </span>
-          <span className="sm:hidden">
-            {isLocating ? '...' : userLocation ? 'লোকেশন অন' : 'লোকেশন'}
-          </span>
-        </button>
+            title={lang === 'bn' ? 'ম্যাপ নির্দেশিকা ও লেজেন্ড' : 'Map Guide & Legend'}
+          >
+            <Info className="w-4 h-4" />
+          </button>
+
+          {activeDockMenu === 'legend' && (
+            <div
+              className={`absolute right-0 mt-2 w-64 rounded-2xl border shadow-2xl backdrop-blur-xl p-3 z-50 text-xs space-y-2.5 animate-in fade-in-50 zoom-in-95 duration-150 ${
+                isLight ? 'bg-white/98 border-slate-200 text-slate-800' : 'bg-slate-900/98 border-slate-800 text-slate-100'
+              }`}
+            >
+              <div className="flex items-center justify-between border-b pb-1.5 border-slate-200 dark:border-slate-800 font-bold">
+                <span>{lang === 'bn' ? 'রেলপথ নির্দেশিকা' : 'Rail Guide & Legend'}</span>
+                <button onClick={() => setActiveDockMenu(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+                  <span>{lang === 'bn' ? 'পূর্বাঞ্চল ট্রেন (East Zone)' : 'East Zone Trains'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-emerald-600"></span>
+                  <span>{lang === 'bn' ? 'পশ্চিমাঞ্চল ট্রেন (West Zone)' : 'West Zone Trains'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+                  <span>{lang === 'bn' ? 'অন-বোর্ড গন্তব্য রুট (Destination)' : 'Destination Route'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
+                  <span>{lang === 'bn' ? 'ক্রসিং / সিগন্যাল ডিটেকশন' : 'Crossing Signal'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Floating Smart Train Monitor Banner (Bottom Left) */}
@@ -1938,6 +2058,46 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Floating Active Onboard Trip HUD at Bottom */}
+      {tripState?.isActive && (
+        <div className="absolute bottom-4 left-3 right-3 sm:left-auto sm:right-3 sm:w-96 z-30 pointer-events-auto p-3 rounded-2xl border border-emerald-500/40 bg-slate-900/95 text-white shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center shrink-0 shadow-lg animate-pulse">
+              <BellRing className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-800 text-emerald-200">
+                  অন-বোর্ড ট্রিপ
+                </span>
+                {liveTripDistKm !== null && (
+                  <span className="text-xs font-mono text-emerald-300">
+                    {toBengaliNumber(Math.round(liveTripDistKm * 10) / 10)} কিমি বাকি
+                  </span>
+                )}
+              </div>
+              <p className="text-xs font-bold truncate text-slate-100 mt-0.5">
+                গন্তব্য: <span className="text-amber-400">{tripState.destinationStationNameBn}</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => onOpenOnboardModal?.()}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-200 border border-slate-700 cursor-pointer"
+            >
+              বিস্তারিত
+            </button>
+            <button
+              onClick={() => onEndTrip?.()}
+              className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-[11px] font-bold text-white shadow cursor-pointer"
+            >
+              সমাপ্ত
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

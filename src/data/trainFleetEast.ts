@@ -16,7 +16,7 @@ import {
 } from './routeCorridors';
 
 export const EAST_ZONE_TRAINS: Train[] = [
-  // 1. Suborno Express (701) - Chattogram to Dhaka Non-stop
+  // 1. Suborno Express (701) - Chattogram to Dhaka Non-stop (Return / UP)
   {
     id: 'suborno-701',
     number: '701',
@@ -32,7 +32,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '12:15',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_CTG_TO_DHAKA,
-    coaches: generateStandardCoaches('সুবর্ণ এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('সুবর্ণ এক্সপ্রেস', true, 'UP'),
     stops: [
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '07:00', departureTime: '07:00', distanceKm: 0, platform: 1 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '11:42', departureTime: '11:45', distanceKm: 304, platform: 1 },
@@ -40,7 +40,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     ],
   },
 
-  // 2. Suborno Express (702) - Dhaka to Chattogram Non-stop
+  // 2. Suborno Express (702) - Dhaka to Chattogram Non-stop (DOWN)
   {
     id: 'suborno-702',
     number: '702',
@@ -56,7 +56,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '21:50',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_DHAKA_TO_CTG,
-    coaches: generateStandardCoaches('সুবর্ণ এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('সুবর্ণ এক্সপ্রেস', true, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '16:30', departureTime: '16:30', distanceKm: 0, platform: 3 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '16:53', departureTime: '16:58', distanceKm: 16, platform: 2 },
@@ -64,40 +64,12 @@ export const EAST_ZONE_TRAINS: Train[] = [
     ],
   },
 
-  // 3. Mahanagar Provati (703) - Chattogram to Dhaka
+  // 3. Mahanagar Provati (703) - Dhaka to Chattogram (DOWN: ক সবার আগে, ত সবার শেষে)
   {
     id: 'mahanagar-703',
     number: '703',
     nameBn: 'মহানগর প্রভাতী (৭০৩)',
     nameEn: 'Mahanagar Provati (703)',
-    type: 'intercity',
-    zone: 'east',
-    offDayBn: 'নাই (প্রতিদিন)',
-    offDayEn: 'None',
-    originStationId: 'CG',
-    destinationStationId: 'DA',
-    departureTime: '12:30',
-    arrivalTime: '18:50',
-    totalDistanceKm: 320,
-    routeCoordinates: ROUTE_CTG_TO_DHAKA,
-    coaches: generateStandardCoaches('মহানগর প্রভাতী'),
-    stops: [
-      { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '12:30', departureTime: '12:30', distanceKm: 0, platform: 2 },
-      { stationId: 'FN', stationNameBn: 'ফেনী জংশন', stationNameEn: 'Feni', arrivalTime: '13:58', departureTime: '14:03', distanceKm: 85, platform: 1 },
-      { stationId: 'CML', stationNameBn: 'কুমিল্লা', stationNameEn: 'Cumilla', arrivalTime: '14:48', departureTime: '14:53', distanceKm: 150, platform: 1 },
-      { stationId: 'AKH', stationNameBn: 'আখাউড়া জংশন', stationNameEn: 'Akhaura', arrivalTime: '15:47', departureTime: '15:52', distanceKm: 200, platform: 2 },
-      { stationId: 'BBR', stationNameBn: 'ভৈরব বাজার জংশন', stationNameEn: 'Bhairab Bazar', arrivalTime: '16:34', departureTime: '16:37', distanceKm: 235, platform: 2 },
-      { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '18:18', departureTime: '18:23', distanceKm: 304, platform: 1 },
-      { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '18:50', departureTime: '18:50', distanceKm: 320, platform: 4 },
-    ],
-  },
-
-  // 4. Mahanagar Godhuli (704) - Dhaka to Chattogram
-  {
-    id: 'mahanagar-704',
-    number: '704',
-    nameBn: 'মহানগর গোধূলী (৭০৪)',
-    nameEn: 'Mahanagar Godhuli (704)',
     type: 'intercity',
     zone: 'east',
     offDayBn: 'নাই (প্রতিদিন)',
@@ -108,7 +80,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '14:00',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_DHAKA_TO_CTG,
-    coaches: generateStandardCoaches('মহানগর গোধূলী'),
+    coaches: generateStandardCoaches('মহানগর প্রভাতী', false, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '07:45', departureTime: '07:45', distanceKm: 0, platform: 4 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '08:08', departureTime: '08:13', distanceKm: 16, platform: 2 },
@@ -117,6 +89,34 @@ export const EAST_ZONE_TRAINS: Train[] = [
       { stationId: 'CML', stationNameBn: 'কুমিল্লা', stationNameEn: 'Cumilla', arrivalTime: '11:05', departureTime: '11:10', distanceKm: 170, platform: 2 },
       { stationId: 'FN', stationNameBn: 'ফেনী জংশন', stationNameEn: 'Feni', arrivalTime: '11:58', departureTime: '12:03', distanceKm: 235, platform: 2 },
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '14:00', departureTime: '14:00', distanceKm: 320, platform: 2 },
+    ],
+  },
+
+  // 4. Mahanagar Godhuli (704) - Chattogram to Dhaka (UP / ফিরতি পথ: ত ইঞ্জিনের পেছনে, ক সবার শেষে)
+  {
+    id: 'mahanagar-704',
+    number: '704',
+    nameBn: 'মহানগর গোধূলী (৭০৪)',
+    nameEn: 'Mahanagar Godhuli (704)',
+    type: 'intercity',
+    zone: 'east',
+    offDayBn: 'নাই (প্রতিদিন)',
+    offDayEn: 'None',
+    originStationId: 'CG',
+    destinationStationId: 'DA',
+    departureTime: '15:00',
+    arrivalTime: '21:15',
+    totalDistanceKm: 320,
+    routeCoordinates: ROUTE_CTG_TO_DHAKA,
+    coaches: generateStandardCoaches('মহানগর গোধূলী', false, 'UP'),
+    stops: [
+      { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '15:00', departureTime: '15:00', distanceKm: 0, platform: 2 },
+      { stationId: 'FN', stationNameBn: 'ফেনী জংশন', stationNameEn: 'Feni', arrivalTime: '16:14', departureTime: '16:19', distanceKm: 85, platform: 1 },
+      { stationId: 'CML', stationNameBn: 'কুমিল্লা', stationNameEn: 'Cumilla', arrivalTime: '17:08', departureTime: '17:13', distanceKm: 150, platform: 1 },
+      { stationId: 'AKH', stationNameBn: 'আখাউড়া জংশন', stationNameEn: 'Akhaura', arrivalTime: '18:05', departureTime: '18:10', distanceKm: 200, platform: 2 },
+      { stationId: 'BBR', stationNameBn: 'ভৈরব বাজার জংশন', stationNameEn: 'Bhairab Bazar', arrivalTime: '18:50', departureTime: '18:53', distanceKm: 235, platform: 2 },
+      { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '20:38', departureTime: '20:43', distanceKm: 304, platform: 1 },
+      { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '21:15', departureTime: '21:15', distanceKm: 320, platform: 4 },
     ],
   },
 
@@ -136,7 +136,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '13:00',
     totalDistanceKm: 190,
     routeCoordinates: ROUTE_DHAKA_TO_DWG,
-    coaches: generateStandardCoaches('তিস্তা এক্সপ্রেস'),
+    coaches: generateStandardCoaches('তিস্তা এক্সপ্রেস', false, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '07:30', departureTime: '07:30', distanceKm: 0, platform: 5 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '07:53', departureTime: '07:58', distanceKm: 16, platform: 2 },
@@ -163,7 +163,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '20:30',
     totalDistanceKm: 190,
     routeCoordinates: ROUTE_DWG_TO_DHAKA,
-    coaches: generateStandardCoaches('তিস্তা এক্সপ্রেস'),
+    coaches: generateStandardCoaches('তিস্তা এক্সপ্রেস', false, 'UP'),
     stops: [
       { stationId: 'DWG', stationNameBn: 'দেওয়ানগঞ্জ বাজার', stationNameEn: 'Dewanganj', arrivalTime: '15:00', departureTime: '15:00', distanceKm: 0, platform: 1 },
       { stationId: 'JML', stationNameBn: 'জামালপুর টাউন', stationNameEn: 'Jamalpur', arrivalTime: '16:03', departureTime: '16:08', distanceKm: 30, platform: 2 },
@@ -190,7 +190,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '13:00',
     totalDistanceKm: 310,
     routeCoordinates: ROUTE_DHAKA_TO_SYL,
-    coaches: generateStandardCoaches('পারাবত এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('পারাবত এক্সপ্রেস', true, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '06:20', departureTime: '06:20', distanceKm: 0, platform: 7 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '06:43', departureTime: '06:48', distanceKm: 16, platform: 2 },
@@ -198,7 +198,10 @@ export const EAST_ZONE_TRAINS: Train[] = [
       { stationId: 'BB', stationNameBn: 'ব্রাহ্মণবাড়িয়া', stationNameEn: 'Brahmanbaria', arrivalTime: '08:23', departureTime: '08:26', distanceKm: 110, platform: 1 },
       { stationId: 'SHA', stationNameBn: 'শায়েস্তাগঞ্জ জংশন', stationNameEn: 'Shayestaganj', arrivalTime: '10:04', departureTime: '10:07', distanceKm: 200, platform: 2 },
       { stationId: 'SRM', stationNameBn: 'শ্রীমঙ্গল', stationNameEn: 'Sreemangal', arrivalTime: '10:53', departureTime: '10:58', distanceKm: 245, platform: 1 },
-      { stationId: 'KLR', stationNameBn: 'কুলাউড়া জংশন', stationNameEn: 'Kulaura', arrivalTime: '11:42', departureTime: '11:47', distanceKm: 275, platform: 1 },
+      { stationId: 'BNG_S', stationNameBn: 'ভানুগাছ', stationNameEn: 'Bhanugach', arrivalTime: '11:12', departureTime: '11:14', distanceKm: 258, platform: 1 },
+      { stationId: 'SMN', stationNameBn: 'শমশেরনগর', stationNameEn: 'Shamshernagar', arrivalTime: '11:25', departureTime: '11:27', distanceKm: 266, platform: 1 },
+      { stationId: 'KLR', stationNameBn: 'কুলাউড়া জংশন', stationNameEn: 'Kulaura', arrivalTime: '11:45', departureTime: '11:50', distanceKm: 275, platform: 1 },
+      { stationId: 'MJG', stationNameBn: 'মাইজগাঁও', stationNameEn: 'Maijgaon', arrivalTime: '12:20', departureTime: '12:22', distanceKm: 295, platform: 1 },
       { stationId: 'SYL', stationNameBn: 'সিলেট', stationNameEn: 'Sylhet', arrivalTime: '13:00', departureTime: '13:00', distanceKm: 310, platform: 1 },
     ],
   },
@@ -219,10 +222,13 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '22:30',
     totalDistanceKm: 310,
     routeCoordinates: ROUTE_SYL_TO_DHAKA,
-    coaches: generateStandardCoaches('পারাবত এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('পারাবত এক্সপ্রেস', true, 'UP'),
     stops: [
       { stationId: 'SYL', stationNameBn: 'সিলেট', stationNameEn: 'Sylhet', arrivalTime: '15:45', departureTime: '15:45', distanceKm: 0, platform: 1 },
+      { stationId: 'MJG', stationNameBn: 'মাইজগাঁও', stationNameEn: 'Maijgaon', arrivalTime: '16:18', departureTime: '16:20', distanceKm: 15, platform: 1 },
       { stationId: 'KLR', stationNameBn: 'কুলাউড়া জংশন', stationNameEn: 'Kulaura', arrivalTime: '16:55', departureTime: '17:00', distanceKm: 35, platform: 2 },
+      { stationId: 'SMN', stationNameBn: 'শমশেরনগর', stationNameEn: 'Shamshernagar', arrivalTime: '17:15', departureTime: '17:17', distanceKm: 44, platform: 1 },
+      { stationId: 'BNG_S', stationNameBn: 'ভানুগাছ', stationNameEn: 'Bhanugach', arrivalTime: '17:28', departureTime: '17:30', distanceKm: 52, platform: 1 },
       { stationId: 'SRM', stationNameBn: 'শ্রীমঙ্গল', stationNameEn: 'Sreemangal', arrivalTime: '17:42', departureTime: '17:47', distanceKm: 65, platform: 1 },
       { stationId: 'SHA', stationNameBn: 'শায়েস্তাগঞ্জ জংশন', stationNameEn: 'Shayestaganj', arrivalTime: '18:31', departureTime: '18:34', distanceKm: 110, platform: 1 },
       { stationId: 'BB', stationNameBn: 'ব্রাহ্মণবাড়িয়া', stationNameEn: 'Brahmanbaria', arrivalTime: '20:18', departureTime: '20:21', distanceKm: 200, platform: 2 },
@@ -248,7 +254,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '11:45',
     totalDistanceKm: 215,
     routeCoordinates: ROUTE_CTG_TO_DHAKA,
-    coaches: generateStandardCoaches('উপকূল এক্সপ্রেস'),
+    coaches: generateStandardCoaches('উপকূল এক্সপ্রেস', false, 'UP'),
     stops: [
       { stationId: 'NKH', stationNameBn: 'নোয়াখালী', stationNameEn: 'Noakhali', arrivalTime: '06:00', departureTime: '06:00', distanceKm: 0, platform: 1 },
       { stationId: 'LKS', stationNameBn: 'লাকসাম জংশন', stationNameEn: 'Laksham', arrivalTime: '07:25', departureTime: '07:35', distanceKm: 65, platform: 3 },
@@ -276,7 +282,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '21:00',
     totalDistanceKm: 215,
     routeCoordinates: ROUTE_DHAKA_TO_CTG,
-    coaches: generateStandardCoaches('উপকূল এক্সপ্রেস'),
+    coaches: generateStandardCoaches('উপকূল এক্সপ্রেস', false, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '15:10', departureTime: '15:10', distanceKm: 0, platform: 3 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '15:33', departureTime: '15:38', distanceKm: 16, platform: 2 },
@@ -304,7 +310,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '16:30',
     totalDistanceKm: 340,
     routeCoordinates: ROUTE_CTG_TO_SYL,
-    coaches: generateStandardCoaches('পাহাড়িকা এক্সপ্রেস'),
+    coaches: generateStandardCoaches('পাহাড়িকা এক্সপ্রেস', false, 'DOWN'),
     stops: [
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '07:50', departureTime: '07:50', distanceKm: 0, platform: 2 },
       { stationId: 'FN', stationNameBn: 'ফেনী জংশন', stationNameEn: 'Feni', arrivalTime: '09:18', departureTime: '09:23', distanceKm: 85, platform: 1 },
@@ -333,7 +339,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '18:50',
     totalDistanceKm: 340,
     routeCoordinates: ROUTE_SYL_TO_CTG,
-    coaches: generateStandardCoaches('পাহাড়িকা এক্সপ্রেস'),
+    coaches: generateStandardCoaches('পাহাড়িকা এক্সপ্রেস', false, 'UP'),
     stops: [
       { stationId: 'SYL', stationNameBn: 'সিলেট', stationNameEn: 'Sylhet', arrivalTime: '10:15', departureTime: '10:15', distanceKm: 0, platform: 2 },
       { stationId: 'KLR', stationNameBn: 'কুলাউড়া জংশন', stationNameEn: 'Kulaura', arrivalTime: '11:25', departureTime: '11:30', distanceKm: 30, platform: 1 },
@@ -362,7 +368,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '05:30',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_CTG_TO_DHAKA,
-    coaches: generateStandardCoaches('মহানগর এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('মহানগর এক্সপ্রেস', true, 'UP'),
     stops: [
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '23:00', departureTime: '23:00', distanceKm: 0, platform: 1 },
       { stationId: 'FN', stationNameBn: 'ফেনী জংশন', stationNameEn: 'Feni', arrivalTime: '00:23', departureTime: '00:28', distanceKm: 85, platform: 1 },
@@ -389,7 +395,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '03:50',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_DHAKA_TO_CTG,
-    coaches: generateStandardCoaches('মহানগর এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('মহানগর এক্সপ্রেস', true, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '21:20', departureTime: '21:20', distanceKm: 0, platform: 2 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '21:43', departureTime: '21:48', distanceKm: 16, platform: 2 },
@@ -416,7 +422,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '05:15',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_CTG_TO_DHAKA,
-    coaches: generateStandardCoaches('তূর্ণা এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('তূর্ণা এক্সপ্রেস', true, 'UP'),
     stops: [
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '23:30', departureTime: '23:30', distanceKm: 0, platform: 2 },
       { stationId: 'FN', stationNameBn: 'ফেনী জংশন', stationNameEn: 'Feni', arrivalTime: '00:45', departureTime: '00:48', distanceKm: 85, platform: 1 },
@@ -442,7 +448,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '05:15',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_DHAKA_TO_CTG,
-    coaches: generateStandardCoaches('তূর্ণা এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('তূর্ণা এক্সপ্রেস', true, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '23:30', departureTime: '23:30', distanceKm: 0, platform: 1 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '23:53', departureTime: '23:58', distanceKm: 16, platform: 2 },
@@ -468,7 +474,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '21:55',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_CTG_TO_DHAKA,
-    coaches: generateStandardCoaches('সোনার বাংলা এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('সোনার বাংলা এক্সপ্রেস', true, 'UP'),
     stops: [
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '16:45', departureTime: '16:45', distanceKm: 0, platform: 1 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '21:24', departureTime: '21:27', distanceKm: 304, platform: 1 },
@@ -492,7 +498,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '12:15',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_DHAKA_TO_CTG,
-    coaches: generateStandardCoaches('সোনার বাংলা এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('সোনার বাংলা এক্সপ্রেস', true, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '07:00', departureTime: '07:00', distanceKm: 0, platform: 2 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '07:23', departureTime: '07:28', distanceKm: 16, platform: 2 },
@@ -516,7 +522,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '21:10',
     totalDistanceKm: 470,
     routeCoordinates: ROUTE_CXB_TO_DHAKA,
-    coaches: generateStandardCoaches("কক্সবাজার এক্সপ্রেস", true),
+    coaches: generateStandardCoaches("কক্সবাজার এক্সপ্রেস", true, 'UP'),
     stops: [
       { stationId: 'CXB', stationNameBn: 'কক্সবাজার আইকনিক স্টেশন', stationNameEn: "Cox's Bazar", arrivalTime: '12:30', departureTime: '12:30', distanceKm: 0, platform: 1 },
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '15:10', departureTime: '15:30', distanceKm: 150, platform: 3 },
@@ -541,7 +547,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '07:20',
     totalDistanceKm: 470,
     routeCoordinates: ROUTE_DHAKA_TO_CXB,
-    coaches: generateStandardCoaches("কক্সবাজার এক্সপ্রেস", true),
+    coaches: generateStandardCoaches("কক্সবাজার এক্সপ্রেস", true, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '22:30', departureTime: '22:30', distanceKm: 0, platform: 1 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '22:53', departureTime: '22:58', distanceKm: 16, platform: 2 },
@@ -566,7 +572,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '04:30',
     totalDistanceKm: 470,
     routeCoordinates: ROUTE_CXB_TO_DHAKA,
-    coaches: generateStandardCoaches('পর্যটক এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('পর্যটক এক্সপ্রেস', true, 'UP'),
     stops: [
       { stationId: 'CXB', stationNameBn: 'কক্সবাজার আইকনিক স্টেশন', stationNameEn: "Cox's Bazar", arrivalTime: '20:00', departureTime: '20:00', distanceKm: 0, platform: 2 },
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '22:35', departureTime: '22:55', distanceKm: 150, platform: 2 },
@@ -591,7 +597,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '15:00',
     totalDistanceKm: 470,
     routeCoordinates: ROUTE_DHAKA_TO_CXB,
-    coaches: generateStandardCoaches('পর্যটক এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('পর্যটক এক্সপ্রেস', true, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '06:15', departureTime: '06:15', distanceKm: 0, platform: 2 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '06:38', departureTime: '06:43', distanceKm: 16, platform: 2 },
@@ -616,7 +622,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '09:30',
     totalDistanceKm: 150,
     routeCoordinates: ROUTE_CTG_TO_CXB,
-    coaches: generateStandardCoaches('সৈকত এক্সপ্রেস'),
+    coaches: generateStandardCoaches('সৈকত এক্সপ্রেস', false, 'DOWN'),
     stops: [
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '07:00', departureTime: '07:00', distanceKm: 0, platform: 3 },
       { stationId: 'DHZ', stationNameBn: 'দোহাজারী', stationNameEn: 'Dohazari', arrivalTime: '07:50', departureTime: '07:52', distanceKm: 45, platform: 1 },
@@ -642,7 +648,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '12:40',
     totalDistanceKm: 150,
     routeCoordinates: ROUTE_CXB_TO_CTG,
-    coaches: generateStandardCoaches('সৈকত এক্সপ্রেস'),
+    coaches: generateStandardCoaches('সৈকত এক্সপ্রেস', false, 'UP'),
     stops: [
       { stationId: 'CXB', stationNameBn: 'কক্সবাজার আইকনিক স্টেশন', stationNameEn: "Cox's Bazar", arrivalTime: '10:00', departureTime: '10:00', distanceKm: 0, platform: 2 },
       { stationId: 'RMU', stationNameBn: 'রামু জংশন', stationNameEn: 'Ramu', arrivalTime: '10:14', departureTime: '10:17', distanceKm: 15, platform: 1 },
@@ -668,7 +674,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '17:50',
     totalDistanceKm: 150,
     routeCoordinates: ROUTE_CTG_TO_CXB,
-    coaches: generateStandardCoaches('প্রবাল এক্সপ্রেস'),
+    coaches: generateStandardCoaches('প্রবাল এক্সপ্রেস', false, 'DOWN'),
     stops: [
       { stationId: 'CG', stationNameBn: 'চট্টগ্রাম', stationNameEn: 'Chattogram', arrivalTime: '15:15', departureTime: '15:15', distanceKm: 0, platform: 1 },
       { stationId: 'DHZ', stationNameBn: 'দোহাজারী', stationNameEn: 'Dohazari', arrivalTime: '16:05', departureTime: '16:07', distanceKm: 45, platform: 1 },
@@ -694,7 +700,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '21:00',
     totalDistanceKm: 150,
     routeCoordinates: ROUTE_CXB_TO_CTG,
-    coaches: generateStandardCoaches('প্রবাল এক্সপ্রেস'),
+    coaches: generateStandardCoaches('প্রবাল এক্সপ্রেস', false, 'UP'),
     stops: [
       { stationId: 'CXB', stationNameBn: 'কক্সবাজার আইকনিক স্টেশন', stationNameEn: "Cox's Bazar", arrivalTime: '18:15', departureTime: '18:15', distanceKm: 0, platform: 1 },
       { stationId: 'RMU', stationNameBn: 'রামু জংশন', stationNameEn: 'Ramu', arrivalTime: '18:30', departureTime: '18:33', distanceKm: 15, platform: 2 },
@@ -720,7 +726,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '17:30',
     totalDistanceKm: 185,
     routeCoordinates: ROUTE_DHAKA_TO_DWG,
-    coaches: generateStandardCoaches('অগ্নিবীণা এক্সপ্রেস'),
+    coaches: generateStandardCoaches('অগ্নিবীণা এক্সপ্রেস', false, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '11:00', departureTime: '11:00', distanceKm: 0, platform: 3 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '11:23', departureTime: '11:28', distanceKm: 16, platform: 2 },
@@ -746,7 +752,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '23:55',
     totalDistanceKm: 185,
     routeCoordinates: ROUTE_DWG_TO_DHAKA,
-    coaches: generateStandardCoaches('অগ্নিবীণা এক্সপ্রেস'),
+    coaches: generateStandardCoaches('অগ্নিবীণা এক্সপ্রেস', false, 'UP'),
     stops: [
       { stationId: 'TRK', stationNameBn: 'তারাকান্দি', stationNameEn: 'Tarakandi', arrivalTime: '18:20', departureTime: '18:20', distanceKm: 0, platform: 1 },
       { stationId: 'JML', stationNameBn: 'জামালপুর টাউন', stationNameEn: 'Jamalpur', arrivalTime: '19:40', departureTime: '19:45', distanceKm: 25, platform: 1 },
@@ -772,7 +778,7 @@ export const EAST_ZONE_TRAINS: Train[] = [
     arrivalTime: '07:30',
     totalDistanceKm: 320,
     routeCoordinates: ROUTE_DHAKA_TO_CTG,
-    coaches: generateStandardCoaches('ঢাকা মেইল'),
+    coaches: generateStandardCoaches('ঢাকা মেইল', false, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '22:30', departureTime: '22:30', distanceKm: 0, platform: 3 },
       { stationId: 'TG', stationNameBn: 'টঙ্গী জংশন', stationNameEn: 'Tongi', arrivalTime: '23:10', departureTime: '23:15', distanceKm: 22, platform: 2 },

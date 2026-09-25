@@ -56,6 +56,7 @@ export const ScreenCustomizationModal: React.FC<ScreenCustomizationModalProps> =
       showRailwayOverlay: true,
       showWagonsOnZoom: true,
       smallMarkerMode: true,
+      showAdBanners: true,
     });
   };
 
@@ -73,6 +74,7 @@ export const ScreenCustomizationModal: React.FC<ScreenCustomizationModalProps> =
       showRailwayOverlay: true,
       showWagonsOnZoom: true,
       smallMarkerMode: true,
+      showAdBanners: true,
     });
   };
 

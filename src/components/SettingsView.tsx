@@ -472,6 +472,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <span className="bg-white w-4 h-4 rounded-full shadow-md"></span>
             </button>
           </div>
+          {/* Ad Banners Toggle */}
+          <div className="flex items-center justify-between pt-3 border-t border-slate-200/50 dark:border-slate-800/60">
+            <div className="space-y-0.5">
+              <span className="font-semibold text-sm">
+                স্পন্সর ও গুগল বিজ্ঞাপন ব্যানার (Ad Banners)
+              </span>
+              <p className="text-xs text-slate-400">
+                শীর্ষ ও নিচের স্পন্সর ব্যানার প্রদর্শন (বিকাশ, নগদ, গ্রামীণফোন ও দারাজ অফার)।
+              </p>
+            </div>
+
+            <button
+              onClick={() => handleToggle('showAdBanners')}
+              className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
+                settings.showAdBanners
+                  ? 'bg-blue-500 justify-end'
+                  : isLight
+                  ? 'bg-slate-300 justify-start'
+                  : 'bg-slate-700 justify-start'
+              }`}
+            >
+              <span className="bg-white w-4 h-4 rounded-full shadow-md"></span>
+            </button>
+          </div>
         </div>
 
         {/* Section 3: Theme & Quick Actions */}

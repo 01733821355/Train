@@ -1,7 +1,21 @@
 import React, { useState } from 'react';
 import { Coach, LiveTrainStatus } from '../types';
 import { toBengaliNumber } from '../utils/geoUtils';
-import { Train as TrainIcon, Utensils, Zap, Shield, Accessibility, Info, Compass, ArrowRight, ArrowLeft, Ticket, ExternalLink } from 'lucide-react';
+import {
+  Train as TrainIcon,
+  Utensils,
+  Zap,
+  Shield,
+  Accessibility,
+  Info,
+  Compass,
+  ArrowRight,
+  ArrowLeft,
+  Ticket,
+  ExternalLink,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react';
 
 interface BogieInspectorProps {
   status: LiveTrainStatus;
@@ -10,11 +24,40 @@ interface BogieInspectorProps {
   theme?: 'light' | 'dark';
 }
 
-export const BogieInspector: React.FC<BogieInspectorProps> = ({ status, onOpenTicketBooking, theme = 'dark' }) => {
+export const BogieInspector: React.FC<BogieInspectorProps> = ({
+  status,
+  onOpenTicketBooking,
+  theme = 'dark',
+}) => {
   const { train, speedKmH } = status;
-  const [selectedCoach, setSelectedCoach] = useState<Coach>(train.coaches[0]);
-
   const isLight = theme === 'light';
+
+  // Check if initial formation has 'ত' at front (UP / Return direction)
+  const isInitiallyUp = train.coaches[1]?.code === 'ত';
+  const [isReversedView, setIsReversedView] = useState(false);
+
+  // Compute effective coaches list
+  const loco = train.coaches.find((c) => c.coachClass === 'LOCOMOTIVE') || train.coaches[0];
+  const passengerCoaches = train.coaches.filter((c) => c.coachClass !== 'LOCOMOTIVE');
+
+  const effectivePassengerCoaches = isReversedView
+    ? [...passengerCoaches].reverse()
+    : passengerCoaches;
+
+  const displayedCoaches: Coach[] = [
+    loco,
+    ...effectivePassengerCoaches.map((c, i) => ({
+      ...c,
+      positionFromFront: i + 2,
+    })),
+  ];
+
+  const [selectedCoach, setSelectedCoach] = useState<Coach>(
+    displayedCoaches[1] || displayedCoaches[0]
+  );
+
+  // Is current view UP (return) or DOWN?
+  const isCurrentViewUp = isInitiallyUp ? !isReversedView : isReversedView;
 
   const getCoachColor = (coachClass: Coach['coachClass']) => {
     switch (coachClass) {
@@ -78,7 +121,7 @@ export const BogieInspector: React.FC<BogieInspectorProps> = ({ status, onOpenTi
         }`}
       >
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span
               className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                 isLight
@@ -88,8 +131,14 @@ export const BogieInspector: React.FC<BogieInspectorProps> = ({ status, onOpenTi
             >
               বগি বিন্যাস নির্দেশিকা (Bogie Order)
             </span>
-            <span className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-              মোট {toBengaliNumber(train.coaches.length)} টি কোচ
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-bold border ${
+                isLight
+                  ? 'bg-blue-50 text-blue-800 border-blue-200'
+                  : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+              }`}
+            >
+              মোট {toBengaliNumber(passengerCoaches.length)} টি বগি (১৬ বগি ফরমেশন)
             </span>
           </div>
           <h3 className={`text-lg md:text-xl font-bold mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
@@ -128,30 +177,44 @@ export const BogieInspector: React.FC<BogieInspectorProps> = ({ status, onOpenTi
             </a>
           </div>
 
-          {/* Train Orientation Indicator */}
-          <div
-            className={`flex items-center gap-3 px-3.5 py-2 rounded-xl border ${
-              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-slate-800'
+          {/* Toggle Direction */}
+          <button
+            onClick={() => setIsReversedView(!isReversedView)}
+            className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              isReversedView
+                ? 'bg-amber-600 text-white border-amber-600 shadow-md'
+                : isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
             }`}
+            title="ফিরতি পথের রেক উল্টোলে বগির অবস্থান পরিবর্তন দেখতে ক্লিক করুন"
           >
-            <div className="flex flex-col items-end">
-              <div className="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
-                <Compass className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '6s' }} />
-                গতিশীল অভিমুখ
-              </div>
-              <span className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
-                সামনের ইঞ্জিন ➔ পেছনের গার্ড
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>{isReversedView ? 'মূল রুটে ফিরুন' : 'ফিরতি পথ দেখুন'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Bangladesh Railway SMS 16318 Bogie Sequence Info Banner */}
+      <div
+        className={`p-3 sm:p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+          isLight ? 'bg-amber-50/90 border-amber-300/80 text-amber-950' : 'bg-amber-950/20 border-amber-800/50 text-amber-200'
+        }`}
+      >
+        <div className="flex items-start gap-2.5">
+          <Compass className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold">
+                {isCurrentViewUp ? 'ফিরতি যাত্রা অভিমুখ (চট্টগ্রাম ➔ ঢাকা):' : 'মূল যাত্রা অভিমুখ (ঢাকা ➔ চট্টগ্রাম / গন্তব্য):'}
+              </span>
+              <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
+                {isCurrentViewUp ? "বগি 'ত' সামনে ➔ 'ক' ট্রেনের সবার শেষে" : "বগি 'ক' ট্রেনের সবার আগে ➔ 'ত' সবার শেষে"}
               </span>
             </div>
-            <div
-              className={`p-1.5 rounded-lg border ${
-                isLight
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              }`}
-            >
-              <ArrowRight className="w-4 h-4" />
-            </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+              বাংলাদেশ রেলওয়ে ও <strong>SMS 16318</strong> নিয়ম: ঢাকা থেকে যাওয়ার সময় <strong>'ক'</strong> বগি ইঞ্জিনের ঠিক পেছনে (সবার আগে) থাকে। ফিরতি পথে ইঞ্জিন অপর প্রান্তে জোড়ায় ট্রেনের <strong>'ক'</strong> বগি সবার শেষে এবং <strong>'ত'</strong> বগি ইঞ্জিনের পেছনে থাকে।
+            </p>
           </div>
         </div>
       </div>
@@ -163,7 +226,7 @@ export const BogieInspector: React.FC<BogieInspectorProps> = ({ status, onOpenTi
             <ArrowLeft className="w-3.5 h-3.5" /> ট্রেনের সামনে (ইঞ্জিন ক্যাব)
           </span>
           <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-semibold">
-            ট্রেনের পেছনে (গার্ড ভ্যান) <ArrowRight className="w-3.5 h-3.5" />
+            ট্রেনের পেছনে (লাস্ট বগি) <ArrowRight className="w-3.5 h-3.5" />
           </span>
         </div>
 
@@ -186,14 +249,15 @@ export const BogieInspector: React.FC<BogieInspectorProps> = ({ status, onOpenTi
           />
 
           <div className="relative z-10 flex items-center gap-1.5 min-w-max pb-2">
-            {train.coaches.map((coach, index) => {
+            {displayedCoaches.map((coach, index) => {
               const isSelected = selectedCoach.id === coach.id;
-              const isFront = index === 0;
-              const isRear = index === train.coaches.length - 1;
+              const isLocomotive = coach.coachClass === 'LOCOMOTIVE';
+              const isFrontPassenger = index === 1;
+              const isRearPassenger = index === displayedCoaches.length - 1;
 
               return (
                 <button
-                  key={coach.id}
+                  key={`${coach.id}-${index}`}
                   id={`coach-btn-${coach.id}`}
                   onClick={() => setSelectedCoach(coach)}
                   className={`group relative flex flex-col items-center justify-between w-20 sm:w-24 h-24 p-2 rounded-xl border-2 transition-all cursor-pointer ${
@@ -267,14 +331,19 @@ export const BogieInspector: React.FC<BogieInspectorProps> = ({ status, onOpenTi
                   </div>
 
                   {/* Front/Rear Marker */}
-                  {isFront && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-bold">
-                      সামনে
+                  {isLocomotive && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-bold whitespace-nowrap">
+                      সামনে ইঞ্জিন
                     </span>
                   )}
-                  {isRear && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] px-1.5 py-0.2 rounded bg-red-500 text-white font-bold">
-                      পেছনে
+                  {isFrontPassenger && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] px-1.5 py-0.2 rounded bg-emerald-600 text-white font-bold whitespace-nowrap">
+                      ১ম বগি
+                    </span>
+                  )}
+                  {isRearPassenger && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] px-1.5 py-0.2 rounded bg-red-500 text-white font-bold whitespace-nowrap">
+                      লাস্ট বগি
                     </span>
                   )}
                 </button>
@@ -298,92 +367,86 @@ export const BogieInspector: React.FC<BogieInspectorProps> = ({ status, onOpenTi
           >
             <div className="flex items-center gap-3">
               <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg border ${
-                  isLight
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                className={`p-3 rounded-xl border ${
+                  isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                 }`}
               >
-                {selectedCoach.code}
+                {getCoachIcon(selectedCoach.coachClass)}
               </div>
               <div>
-                <h4 className={`text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  {selectedCoach.nameBn}
+                <div className="flex items-center gap-2">
+                  <span className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                    {selectedCoach.nameBn}
+                  </span>
                   <span
-                    className={`text-xs px-2 py-0.5 rounded font-normal ${
-                      isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-300'
+                    className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
+                      isLight ? 'bg-slate-200 text-slate-800' : 'bg-slate-800 text-emerald-400'
                     }`}
                   >
-                    {selectedCoach.nameEn}
+                    কোড: {selectedCoach.code}
                   </span>
-                </h4>
-                <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                  অবস্থান: সামনে থেকে {toBengaliNumber(selectedCoach.positionFromFront)} নম্বর বগি •{' '}
-                  {selectedCoach.positionFromFront === 1
-                    ? 'ট্রেনের মূল চালক ও সহকারী চালকের ক্যাব'
-                    : selectedCoach.positionFromFront === train.coaches.length
-                    ? 'ট্রেনের শেষ প্রান্তে অবস্থিত গার্ড ভ্যান'
-                    : 'যাত্রীবাহী কামরা'}
-                </p>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{selectedCoach.nameEn}</p>
               </div>
             </div>
 
-            {/* Coach Class Badge */}
-            <div className="flex items-center gap-2">
-              <span className={`px-3 py-1 rounded-lg text-xs font-semibold border ${getCoachColor(selectedCoach.coachClass)}`}>
-                {selectedCoach.coachClass === 'LOCOMOTIVE' ? 'লোকোমোটিভ ইঞ্জিন' : selectedCoach.coachClass}
-              </span>
+            <div className="flex items-center gap-3 text-xs">
+              <div
+                className={`px-3 py-1.5 rounded-lg border text-center ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+                }`}
+              >
+                <span className="text-slate-400 block text-[10px]">অবস্থান</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  ইঞ্জিন থেকে #{toBengaliNumber(selectedCoach.positionFromFront)}
+                </span>
+              </div>
+              {selectedCoach.seats > 0 && (
+                <div
+                  className={`px-3 py-1.5 rounded-lg border text-center ${
+                    isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+                  }`}
+                >
+                  <span className="text-slate-400 block text-[10px]">মোট আসন</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {toBengaliNumber(selectedCoach.seats)} টি
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-            <div className={`p-3 rounded-lg border ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-slate-800'}`}>
-              <span className={`text-xs block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>আসন সংখ্যা</span>
-              <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
-                {selectedCoach.seats > 0 ? `${toBengaliNumber(selectedCoach.seats)} টি সিট` : 'প্রযোজ্য নয়'}
-              </span>
+          {/* Features and Description */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="space-y-1">
+              <span className="text-slate-400 block text-[11px] font-semibold">বগি বিবরণ</span>
+              <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                {selectedCoach.descriptionBn || 'বাংলাদেশ রেলওয়ে আধুনিক ব্রডগেজ/মিটারগেজ কোচ।'}
+              </p>
             </div>
 
-            <div className={`p-3 rounded-lg border ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-slate-800'}`}>
-              <span className={`text-xs block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>টয়লেট / ওয়াশরুম</span>
-              <span className={`text-sm font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                {selectedCoach.hasToilet ? 'উপলব্ধ (বায়ো-টয়লেট)' : 'নাই'}
-              </span>
+            <div className="flex items-center gap-4 sm:justify-end">
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${selectedCoach.hasToilet ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                <span className="text-slate-600 dark:text-slate-300">
+                  {selectedCoach.hasToilet ? 'টয়লেট সুবিধা আছে' : 'টয়লেট নাই'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Accessibility
+                  className={`w-3.5 h-3.5 ${
+                    selectedCoach.hasWheelchair ? 'text-emerald-500' : 'text-slate-400'
+                  }`}
+                />
+                <span className="text-slate-600 dark:text-slate-300">
+                  {selectedCoach.hasWheelchair ? 'হুইলচেয়ার এক্সেস' : 'সাধারণ বগি'}
+                </span>
+              </div>
             </div>
-
-            <div className={`p-3 rounded-lg border ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-slate-800'}`}>
-              <span className={`text-xs block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>হুইলচেয়ার সুবিধা</span>
-              <span className={`text-sm font-semibold flex items-center gap-1 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                {selectedCoach.hasWheelchair ? (
-                  <>
-                    <Accessibility className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> সহজে প্রবেশযোগ্য
-                  </>
-                ) : (
-                  'স্বাভাবিক'
-                )}
-              </span>
-            </div>
-
-            <div className={`p-3 rounded-lg border ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-slate-800'}`}>
-              <span className={`text-xs block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>লাইভ ট্র্যাকিং স্পিড</span>
-              <span className="text-sm font-semibold text-cyan-600 dark:text-cyan-400">
-                {toBengaliNumber(speedKmH)} কিমি/ঘণ্টা
-              </span>
-            </div>
-          </div>
-
-          <div
-            className={`mt-3 flex items-start gap-2 text-xs p-2.5 rounded-lg border ${
-              isLight
-                ? 'bg-emerald-50/60 border-emerald-200 text-slate-700'
-                : 'bg-slate-900/50 border-slate-800/80 text-slate-400'
-            }`}
-          >
-            <Info className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-            <span>{selectedCoach.descriptionBn}</span>
           </div>
         </div>
       )}
     </div>
   );
 };
+
