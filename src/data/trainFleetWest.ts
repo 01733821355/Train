@@ -674,7 +674,7 @@ export const WEST_ZONE_TRAINS: Train[] = [
     arrivalTime: '07:10',
     totalDistanceKm: 480,
     routeCoordinates: ROUTE_DHAKA_TO_PNC,
-    coaches: generateStandardCoaches('দ্রুতযান এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('দ্রুতযান এক্সপ্রেস', true, 'DOWN'),
     stops: [
       { stationId: 'DA', stationNameBn: 'ঢাকা (কমলাপুর)', stationNameEn: 'Dhaka', arrivalTime: '20:45', departureTime: '20:45', distanceKm: 0, platform: 6 },
       { stationId: 'DAA', stationNameBn: 'ঢাকা বিমানবন্দর', stationNameEn: 'Dhaka Airport', arrivalTime: '21:08', departureTime: '21:13', distanceKm: 16, platform: 2 },
@@ -682,6 +682,7 @@ export const WEST_ZONE_TRAINS: Train[] = [
       { stationId: 'TGL', stationNameBn: 'টাঙ্গাইল', stationNameEn: 'Tangail', arrivalTime: '22:38', departureTime: '22:40', distanceKm: 85, platform: 2 },
       { stationId: 'ULP', stationNameBn: 'উল্লাপাড়া', stationNameEn: 'Ullapara', arrivalTime: '23:38', departureTime: '23:41', distanceKm: 140, platform: 1 },
       { stationId: 'NAT', stationNameBn: 'নাটোর', stationNameEn: 'Natore', arrivalTime: '00:52', departureTime: '00:56', distanceKm: 210, platform: 2 },
+      { stationId: 'ATR', stationNameBn: 'আত্রাই', stationNameEn: 'Atrai', arrivalTime: '01:18', departureTime: '01:20', distanceKm: 235, platform: 1 },
       { stationId: 'SNT', stationNameBn: 'সান্তাহার জংশন', stationNameEn: 'Santahar', arrivalTime: '01:45', departureTime: '02:00', distanceKm: 260, platform: 3 },
       { stationId: 'AKP', stationNameBn: 'আক্কেলপুর', stationNameEn: 'Akkelpur', arrivalTime: '02:22', departureTime: '02:25', distanceKm: 275, platform: 1 },
       { stationId: 'JPH', stationNameBn: 'জয়পুরহাট', stationNameEn: 'Joypurhat', arrivalTime: '02:45', departureTime: '02:50', distanceKm: 295, platform: 1 },
@@ -711,7 +712,7 @@ export const WEST_ZONE_TRAINS: Train[] = [
     arrivalTime: '18:55',
     totalDistanceKm: 480,
     routeCoordinates: ROUTE_PNC_TO_DHAKA,
-    coaches: generateStandardCoaches('দ্রুতযান এক্সপ্রেস', true),
+    coaches: generateStandardCoaches('দ্রুতযান এক্সপ্রেস', true, 'UP'),
     stops: [
       { stationId: 'PNC', stationNameBn: 'পঞ্চগড়', stationNameEn: 'Panchagarh', arrivalTime: '07:20', departureTime: '07:20', distanceKm: 0, platform: 1 },
       { stationId: 'THG', stationNameBn: 'ঠাকুরগাঁও রোড', stationNameEn: 'Thakurgaon', arrivalTime: '08:02', departureTime: '08:05', distanceKm: 30, platform: 1 },
@@ -723,6 +724,7 @@ export const WEST_ZONE_TRAINS: Train[] = [
       { stationId: 'JPH', stationNameBn: 'জয়পুরহাট', stationNameEn: 'Joypurhat', arrivalTime: '11:55', departureTime: '12:00', distanceKm: 185, platform: 1 },
       { stationId: 'AKP', stationNameBn: 'আক্কেলপুর', stationNameEn: 'Akkelpur', arrivalTime: '12:18', departureTime: '12:21', distanceKm: 205, platform: 1 },
       { stationId: 'SNT', stationNameBn: 'সান্তাহার জংশন', stationNameEn: 'Santahar', arrivalTime: '12:35', departureTime: '12:40', distanceKm: 220, platform: 2 },
+      { stationId: 'ATR', stationNameBn: 'আত্রাই', stationNameEn: 'Atrai', arrivalTime: '13:00', departureTime: '13:02', distanceKm: 245, platform: 1 },
       { stationId: 'NAT', stationNameBn: 'নাটোর', stationNameEn: 'Natore', arrivalTime: '13:22', departureTime: '13:25', distanceKm: 270, platform: 1 },
       { stationId: 'ISB', stationNameBn: 'ঈশ্বরদী বাইপাস', stationNameEn: 'Ishwardi Bypass', arrivalTime: '14:05', departureTime: '14:08', distanceKm: 295, platform: 1 },
       { stationId: 'ULP', stationNameBn: 'উল্লাপাড়া', stationNameEn: 'Ullapara', arrivalTime: '14:52', departureTime: '14:55', distanceKm: 340, platform: 2 },

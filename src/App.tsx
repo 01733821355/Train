@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BANGLADESH_TRAINS } from './data/trains';
 import { Station, LiveTrainStatus, ScreenCustomizationSettings, DEFAULT_SCREEN_SETTINGS, OnboardTripState, MonetizationState } from './types';
-import { computeTrainLiveStatus, getCurrentBSTMinutes, getCurrentBSTDateInfo } from './utils/trackerEngine';
+import { computeTrainLiveStatus, getCurrentBSTMinutes, getCurrentBSTDateInfo, SmsTrainCalibration } from './utils/trackerEngine';
 import { formatMinutesToTime, toBengaliNumber, calculateDistanceKm, getRatioAlongPath } from './utils/geoUtils';
 import { startContinuousAlarm, stopContinuousAlarm, triggerBrowserNotification } from './utils/soundAlert';
 import { Language } from './utils/i18n';
@@ -108,6 +108,21 @@ export default function App() {
   const [selectedTrainId, setSelectedTrainId] = useState<string>('coxsbazar-813');
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [isTrafficScannerOpen, setIsTrafficScannerOpen] = useState<boolean>(false);
+
+  // 16318 SMS Live Calibration State
+  const [smsCalibrations, setSmsCalibrations] = useState<Record<string, SmsTrainCalibration>>({});
+
+  const handleCalibrateTrain = (calibration: SmsTrainCalibration) => {
+    const matched = BANGLADESH_TRAINS.find((t) => t.number === calibration.trainNumber);
+    if (matched) {
+      setSmsCalibrations((prev) => ({
+        ...prev,
+        [matched.id]: calibration,
+      }));
+      setSelectedTrainId(matched.id);
+      setActiveTab('map');
+    }
+  };
 
   // E-Ticket modal state
   const [isTicketModalOpen, setIsTicketModalOpen] = useState<boolean>(false);
@@ -351,12 +366,14 @@ export default function App() {
         timeMinutes,
         1.0,
         currentBSTDayInfo.dayOfWeekEn,
-        crowdsourceGps
+        crowdsourceGps,
+        smsCalibrations[train.id]
       );
     });
   }, [
     timeMinutes,
     currentBSTDayInfo,
+    smsCalibrations,
     tripState?.isActive,
     tripState?.trainId,
     tripState?.userLat,
@@ -835,7 +852,7 @@ export default function App() {
         />
       )}
 
-      {/* Official 16318 SMS Live Tracker Modal */}
+      {/* Official 16318 SMS Live Tracker & Auto-Detection Modal */}
       {isSmsTrackerModalOpen && (
         <SmsTrackerModal
           isOpen={isSmsTrackerModalOpen}
@@ -843,6 +860,12 @@ export default function App() {
           trainStatuses={trainStatuses}
           initialTrainId={selectedTrainId}
           theme={theme}
+          onSelectTrain={(trainId) => {
+            setSelectedTrainId(trainId);
+            setActiveTab('map');
+            setIsSmsTrackerModalOpen(false);
+          }}
+          onCalibrateTrain={handleCalibrateTrain}
         />
       )}
 

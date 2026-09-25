@@ -104,6 +104,8 @@ export interface LiveTrainStatus {
   signalDescriptionBn: string;
   isCrowdsourcedGpsCalibrated?: boolean;
   crowdsourcedSpeedKmH?: number;
+  isSmsCalibrated?: boolean;
+  smsStatusNote?: string;
 }
 
 export interface ScreenCustomizationSettings {

@@ -235,6 +235,18 @@ export function isTrainOffDay(train: Train, dayOfWeekEn?: string): boolean {
   return false;
 }
 
+export interface SmsTrainCalibration {
+  trainNumber: string;
+  lat: number;
+  lng: number;
+  delayMinutes: number;
+  currentStationName?: string;
+  nextStopName?: string;
+  nextStnDistanceKm?: number;
+  remainingStopsCount?: number;
+  updatedAt: number;
+}
+
 /**
  * Computes real-time position and traffic status for a train at a given timeOfDayMinutes
  * (0 to 1439).
@@ -244,10 +256,10 @@ export function computeTrainLiveStatus(
   currentMinutes: number,
   trafficDensityFactor: number = 1.0,
   dayOfWeekEn?: string,
-  crowdsourceGps?: { userLat: number; userLng: number; speedKmH?: number; accuracyMeters?: number }
+  crowdsourceGps?: { userLat: number; userLng: number; speedKmH?: number; accuracyMeters?: number },
+  smsCalibration?: SmsTrainCalibration
 ): LiveTrainStatus {
-  // 1. Check if today is the train's weekly off-day
-  const isOffDay = isTrainOffDay(train, dayOfWeekEn);
+  const isOffDay = !smsCalibration && isTrainOffDay(train, dayOfWeekEn);
   if (isOffDay) {
     const terminalStation = STATION_MAP[train.originStationId];
     const initialCoords = train.routeCoordinates[0] || [
@@ -572,18 +584,41 @@ export function computeTrainLiveStatus(
     signalDescriptionBn = `মেইন লাইনে অটোমেটিক কালার লাইট ব্লক সিগন্যাল সবুজ। সেকশন সম্পূর্ণ নিরাপদ।`;
   }
 
+  // Apply SMS Detection Calibration if available
+  let finalLat = lat;
+  let finalLng = lng;
+  let finalDelayMinutes = predictiveDelay.predictedDelayMinutes;
+  let finalStatusBn = statusBn;
+  let finalStatusEn = statusEn;
+  let isSmsCalibrated = false;
+  let smsStatusNote: string | undefined;
+
+  if (smsCalibration) {
+    const snap = snapCoordToPath(train.routeCoordinates, smsCalibration.lat, smsCalibration.lng);
+    finalLat = snap[0];
+    finalLng = snap[1];
+    finalDelayMinutes = smsCalibration.delayMinutes;
+    predictiveDelay.predictedDelayMinutes = smsCalibration.delayMinutes;
+    predictiveDelay.isLate = smsCalibration.delayMinutes >= 5;
+    predictiveDelay.primaryFactorBn = `১৬৩১৮ অফিসিয়াল এসএমএস ট্র্যাকিং (${smsCalibration.currentStationName || 'স্টেশন'})`;
+    finalStatusBn = `১৬৩১৮ এসএমএস ভেরিফাইড: ${smsCalibration.currentStationName || 'লাইনে অবস্থান'} (বিলম্ব: ${toBengaliNumber(smsCalibration.delayMinutes)} মি.)`;
+    finalStatusEn = `16318 SMS Verified: ${smsCalibration.currentStationName || 'On Track'} (Delay: ${smsCalibration.delayMinutes} min)`;
+    isSmsCalibrated = true;
+    smsStatusNote = `রেলওয়ে ১৬৩১৮ এসএমএস অনুযায়ী ট্রেনটি এখন ${smsCalibration.currentStationName || 'লাইনে'} অবস্থান করছে।`;
+  }
+
   return {
     train,
     isActive: true,
     isOffDay: false,
-    currentLat: lat,
-    currentLng: lng,
+    currentLat: finalLat,
+    currentLng: finalLng,
     bearing,
-    speedKmH,
-    statusBn,
-    statusEn,
+    speedKmH: isSmsCalibrated ? Math.max(speedKmH, 45) : speedKmH,
+    statusBn: finalStatusBn,
+    statusEn: finalStatusEn,
     trafficCondition,
-    delayMinutes: predictiveDelay.predictedDelayMinutes,
+    delayMinutes: finalDelayMinutes,
     predictiveDelay,
     nextStation: nextStationObj,
     previousStation: prevStationObj,
@@ -597,6 +632,8 @@ export function computeTrainLiveStatus(
     signalDescriptionBn,
     isCrowdsourcedGpsCalibrated,
     crowdsourcedSpeedKmH,
+    isSmsCalibrated,
+    smsStatusNote,
   };
 }
 
