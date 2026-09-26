@@ -160,6 +160,38 @@ export const AutonomousTrafficMonitor: React.FC<AutonomousTrafficMonitorProps> =
         </div>
       </div>
 
+      {/* 350m-500m Rail Cluster Telemetry Banner */}
+      <div
+        className={`px-3 py-1.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] ${
+          isLight
+            ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-emerald-200 text-emerald-950'
+            : 'bg-gradient-to-r from-emerald-950/40 via-teal-950/30 to-blue-950/20 border-emerald-800/40 text-emerald-200'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+          <span className="font-bold">📡 ৩৫০–৫০০ মিটার ট্রেন ক্লাস্টার রাডার:</span>
+          <span className="text-slate-600 dark:text-slate-300">
+            {selectedStatus ? (
+              selectedStatus.speedKmH < 15 ? (
+                <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                  সিগন্যালে/লুপে থেমে থাকা ক্লাস্টার ({toBengaliNumber(selectedStatus.speedKmH)} কিমি/ঘণ্টা)
+                </span>
+              ) : (
+                <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                  সচল ১৬ বগির রেক ({toBengaliNumber(selectedStatus.speedKmH)} কিমি/ঘণ্টা)
+                </span>
+              )
+            ) : (
+              'রেল ট্র্যাকে চলমান ৩৫০-৫০০মি. ডিভাইস ক্লাস্টার মনিটর হচ্ছে'
+            )}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-blue-700 dark:text-blue-300 font-medium">
+          <span>✓ হাইওয়ে রোড জ্যাম ফিল্টার্ড (১-২ কিমি বাদ)</span>
+        </div>
+      </div>
+
       {/* Live Railway Signal Bar */}
       {selectedStatus?.currentSignalNameBn && (
         <div

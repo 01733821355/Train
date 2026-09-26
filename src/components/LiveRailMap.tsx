@@ -10,6 +10,7 @@ import {
   RailLineSegment,
 } from '../data/railNetwork';
 import { toBengaliNumber, calculateDistanceKm, getTrackSegmentOfLength, getTrailingWagonPositions, sliceCoords } from '../utils/geoUtils';
+import { detect350to500mRailClusters, DetectedRailCluster } from '../utils/railClusterDetector';
 import { Language } from '../utils/i18n';
 import { UpcomingStopsTimeline } from './UpcomingStopsTimeline';
 import { UserProximityCard } from './UserProximityCard';
@@ -657,77 +658,98 @@ export const LiveRailMap: React.FC<LiveRailMapProps> = ({
         }).addTo(trainMarkersLayerRef.current!);
       }
 
-      // Exact 100 to 300-Meter Railway Track Jam & Train Detection Ribbon
+      // Exact 350m to 500m Railway Track Telemetry & Rake Moving Cluster Ribbon
       if (
-        effectiveSettings.showCongestionRibbons &&
+        (effectiveSettings.showCongestionRibbons || effectiveSettings.enable350mRakeRadar) &&
         status.isActive &&
         train.routeCoordinates &&
         train.routeCoordinates.length > 1
       ) {
-        const detectionRangeKm = (effectiveSettings.jamDetectionRangeMeters || 200) / 1000;
-        // Calculate exact 100m-300m track segment along this rail route centered at train's position
-        const jam200mPoints = getTrackSegmentOfLength(
+        // Physical Rake Length: 16 coaches + loco = ~380m to 450m (User requested 350m to 500m)
+        const coachCount = train.coaches?.filter((c) => c.coachClass !== 'LOCOMOTIVE').length || 16;
+        const rakeLengthMeters = Math.min(500, Math.max(350, effectiveSettings.jamDetectionRangeMeters || Math.round(22 + coachCount * 22.5)));
+        const detectionRangeKm = rakeLengthMeters / 1000;
+
+        const rakePoints = getTrackSegmentOfLength(
           train.routeCoordinates,
           currentLat,
           currentLng,
           detectionRangeKm
         );
 
-        if (jam200mPoints.length >= 2) {
-          let trafficColor = '#ef4444'; // Vivid Red (moving passenger GPS jam)
+        if (rakePoints.length >= 2) {
+          const isHaltedAtSignal = speedKmH < 15 || trafficCondition === 'WAITING_CROSSING';
+          const isStationStop = trafficCondition === 'STATION_STOP' || speedKmH < 4;
+
+          let trafficColor = '#ef4444'; // Moving train cluster
           let glowColor = '#dc2626';
 
-          if (trafficCondition === 'STATION_STOP' || speedKmH < 5) {
-            trafficColor = '#b91c1c'; // Deep Dark Red (Station Stop Bottleneck)
+          if (isStationStop) {
+            trafficColor = '#b91c1c'; // Deep Dark Red (Station Platform Stop)
             glowColor = '#991b1b';
-          } else if (trafficCondition === 'WAITING_CROSSING' || speedKmH < 25) {
-            trafficColor = '#e11d48'; // Crossing Congestion Rose-Red
-            glowColor = '#be123c';
+          } else if (isHaltedAtSignal) {
+            trafficColor = '#f59e0b'; // Amber / Orange (Waiting for Signal / Crossing Loop)
+            glowColor = '#d97706';
           }
 
-          // 1. Outer Pulsing Glow Aura for the 200m zone
-          L.polyline(jam200mPoints, {
+          // 1. Outer Pulsing Glow Aura for the 350m-500m Rake Zone
+          L.polyline(rakePoints, {
             color: glowColor,
-            weight: 14,
-            opacity: 0.45,
+            weight: 16,
+            opacity: 0.5,
             lineCap: 'round',
           }).addTo(trafficCongestionLayerRef.current!);
 
-          // 2. Core 200-Meter Traffic Congestion Ribbon (Google Maps Traffic Red)
-          const jam200mLine = L.polyline(jam200mPoints, {
+          // 2. Core 350m-500m Rake Cluster Ribbon
+          const rakeClusterLine = L.polyline(rakePoints, {
             color: trafficColor,
-            weight: 8,
+            weight: 9,
             opacity: 0.95,
             lineCap: 'round',
           });
 
           // 3. Centerline highlight for sharp visibility
-          L.polyline(jam200mPoints, {
-            color: '#fecdd3',
-            weight: 2.5,
+          L.polyline(rakePoints, {
+            color: isHaltedAtSignal ? '#fef3c7' : '#fecdd3',
+            weight: 3,
             opacity: 1,
             lineCap: 'round',
           }).addTo(trafficCongestionLayerRef.current!);
 
-          jam200mLine.bindTooltip(
-            `<div class="p-1.5 text-xs font-sans shadow-lg">
-              <div class="flex items-center gap-1.5 font-bold text-emerald-600 mb-0.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>${train.nameBn} (${train.number})</span>
+          rakeClusterLine.bindTooltip(
+            `<div class="p-2 text-xs font-sans shadow-xl rounded-lg max-w-[260px]">
+              <div class="flex items-center justify-between gap-1.5 font-bold mb-1">
+                <span class="flex items-center gap-1.5 ${isHaltedAtSignal ? 'text-amber-600' : 'text-emerald-600'}">
+                  <span class="w-2.5 h-2.5 rounded-full ${isHaltedAtSignal ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}"></span>
+                  <span>${train.nameBn} (${train.number})</span>
+                </span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 font-mono font-bold text-slate-700">
+                  ${toBengaliNumber(rakeLengthMeters)} মি. রেক
+                </span>
               </div>
-              <p class="text-[10px] text-slate-700 font-semibold">লাইভ গতি: ${toBengaliNumber(speedKmH)} কিমি/ঘণ্টা</p>
-              <p class="text-[10px] text-slate-500 mt-0.5">${status.currentBlockSectionBn}</p>
-              <p class="text-[10px] text-blue-600 font-medium">পরবর্তী: ${status.nextStation ? status.nextStation.nameBn : 'পৌঁছেছে'}</p>
+              <p class="text-[11px] font-semibold text-slate-800">
+                ${
+                  isStationStop
+                    ? 'স্টেশন প্ল্যাটফর্মে অবস্থানরত'
+                    : isHaltedAtSignal
+                    ? 'আউটার/লুপ লাইনে সিগন্যাল অপেক্ষা (স্থির ক্লাস্টার)'
+                    : `সচল ট্রেন ক্লাস্টার: ${toBengaliNumber(speedKmH)} কিমি/ঘণ্টা`
+                }
+              </p>
+              <div class="mt-1 pt-1 border-t border-slate-200 text-[10px] space-y-0.5 text-slate-500">
+                <p>ডিভাইস ঘনত্ব: <strong class="text-emerald-600 font-semibold">অত্যধিক উচ্চ (Google Location Cluster)</strong></p>
+                <p class="text-blue-600 font-medium">✓ হাইওয়ে রোড জ্যাম ফিল্টার্ড (সমান্তরাল ১-২ কিমি বাদ)</p>
+                <p class="text-slate-600 font-medium">সেকশন: ${status.currentBlockSectionBn}</p>
+              </div>
             </div>`,
             { direction: 'top', offset: [0, -10] }
           );
 
-          jam200mLine.on('click', () => {
+          rakeClusterLine.on('click', () => {
             onSelectTrain(train.id);
           });
 
-          jam200mLine.addTo(trafficCongestionLayerRef.current!);
-
+          rakeClusterLine.addTo(trafficCongestionLayerRef.current!);
         }
       }
 

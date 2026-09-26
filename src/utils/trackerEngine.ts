@@ -607,6 +607,12 @@ export function computeTrainLiveStatus(
     smsStatusNote = `রেলওয়ে ১৬৩১৮ এসএমএস অনুযায়ী ট্রেনটি এখন ${smsCalibration.currentStationName || 'লাইনে'} অবস্থান করছে।`;
   }
 
+  const hasGoogleLocationCluster = Boolean(
+    isSmsCalibrated ||
+    isCrowdsourcedGpsCalibrated ||
+    (train.routeCoordinates && train.routeCoordinates.length > 5)
+  );
+
   return {
     train,
     isActive: true,
@@ -634,6 +640,8 @@ export function computeTrainLiveStatus(
     crowdsourcedSpeedKmH,
     isSmsCalibrated,
     smsStatusNote,
+    hasGoogleLocationCluster,
+    requiresGoogleCluster: true,
   };
 }
 

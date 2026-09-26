@@ -49,7 +49,10 @@ export const ScreenCustomizationModal: React.FC<ScreenCustomizationModalProps> =
       showUserProximityHud: false,
       showUpcomingStopsTimeline: false,
       showCongestionRibbons: false,
-      jamDetectionRangeMeters: 200,
+      jamDetectionRangeMeters: 400,
+      enable350mRakeRadar: true,
+      filterHighwayRoadJams: true,
+      detectHaltedSignalTrains: true,
       showLandmarkBadges: false,
       showSpeedometerHud: false,
       showQuickTicketBtn: false,
@@ -67,7 +70,10 @@ export const ScreenCustomizationModal: React.FC<ScreenCustomizationModalProps> =
       showUserProximityHud: true,
       showUpcomingStopsTimeline: true,
       showCongestionRibbons: true,
-      jamDetectionRangeMeters: 250,
+      jamDetectionRangeMeters: 450,
+      enable350mRakeRadar: true,
+      filterHighwayRoadJams: true,
+      detectHaltedSignalTrains: true,
       showLandmarkBadges: true,
       showSpeedometerHud: true,
       showQuickTicketBtn: true,
@@ -88,6 +94,24 @@ export const ScreenCustomizationModal: React.FC<ScreenCustomizationModalProps> =
     descBn: string;
     icon: React.ReactNode;
   }> = [
+    {
+      key: 'enable350mRakeRadar',
+      titleBn: '৩৫০-৫০০ মিটার ট্রেন ক্লাস্টার ডিটেকশন রাডার',
+      descBn: '১৬-১৮ বগির বাস্তব ট্রেনের দৈর্ঘ্য (৩৫০-৫০০মি.) অনুযায়ী ট্র্যাকে চলমান ট্রেনের ডিভাইস ক্লাস্টার সনাক্ত করে ট্রেন লোকেট করা',
+      icon: <Layers className="w-4 h-4 text-emerald-500" />,
+    },
+    {
+      key: 'filterHighwayRoadJams',
+      titleBn: 'হাইওয়ে রোড ট্রাফিক জ্যাম স্বয়ংক্রিয় ফিল্টার',
+      descBn: 'সমান্তরাল মহাসড়ক বা রোডের ১-২ কিমি লম্বা জ্যাম বাদ দিয়ে শুধুমাত্র রেললাইনের ৩০ মিটারের ভেতরের ক্লাস্টার সনাক্ত করা',
+      icon: <Check className="w-4 h-4 text-blue-500" />,
+    },
+    {
+      key: 'detectHaltedSignalTrains',
+      titleBn: 'সিগন্যাল/লুপ লাইনে থেমে থাকা ট্রেন ডিটেকশন',
+      descBn: 'আউটার সিগন্যালে বা ক্রসিং স্টেশনের বাইরে থেমে থাকা ট্রেনকে ট্র্যাকে স্থির ক্লাস্টার হিসেবে চিহ্নিত করা',
+      icon: <Activity className="w-4 h-4 text-amber-500" />,
+    },
     {
       key: 'showSoloTrainFocus',
       titleBn: 'একক ট্রেন ট্র্যাক মোড (অন্য ট্রেন লুকানো)',

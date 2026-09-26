@@ -20,6 +20,11 @@ import { AdBanner } from './components/AdBanner';
 import { SmsTrackerModal } from './components/SmsTrackerModal';
 import { MonetizationDashboardModal } from './components/MonetizationDashboardModal';
 import { RewardedAdModal } from './components/RewardedAdModal';
+import { UserAccount, AuthDB } from './utils/authDatabase';
+import { LoginModal } from './components/LoginModal';
+import { SubscriptionModal } from './components/SubscriptionModal';
+import { AdminDashboardModal } from './components/AdminDashboardModal';
+import { AdBannerBar } from './components/AdBannerBar';
 import { MapPin, Train as TrainIcon, Layers, Eye, Compass, Clock, ListFilter, AlertTriangle, Activity, Ticket, Sliders, Settings, BellRing, MessageSquare, DollarSign, Sparkles } from 'lucide-react';
 
 export default function App() {
@@ -97,6 +102,32 @@ export default function App() {
   const [isSmsTrackerModalOpen, setIsSmsTrackerModalOpen] = useState<boolean>(false);
   const [isMonetizationModalOpen, setIsMonetizationModalOpen] = useState<boolean>(false);
   const [isRewardedAdModalOpen, setIsRewardedAdModalOpen] = useState<boolean>(false);
+
+  // User & Admin Authentication State
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    return AuthDB.getActiveAdmin() || AuthDB.attemptAutoLogin();
+  });
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState<boolean>(false);
+  const [isAdminDashboardModalOpen, setIsAdminDashboardModalOpen] = useState<boolean>(false);
+
+  // Global SMS Calibrations from Admin & SMS Gateway
+  const [globalCalibrations, setGlobalCalibrations] = useState<Record<string, any>>(() => {
+    return AuthDB.getGlobalSmsCalibrations();
+  });
+
+  const handleGlobalTrainCalibrated = (trainId: string, calibration: any) => {
+    setGlobalCalibrations((prev) => ({
+      ...prev,
+      [trainId]: calibration,
+    }));
+    setSelectedTrainId(trainId);
+  };
+
+  const handleLogout = () => {
+    AuthDB.logout();
+    setCurrentUser(null);
+  };
 
   // Clock state
   const [timeMinutes, setTimeMinutes] = useState<number>(() => getCurrentBSTMinutes());
@@ -367,13 +398,14 @@ export default function App() {
         1.0,
         currentBSTDayInfo.dayOfWeekEn,
         crowdsourceGps,
-        smsCalibrations[train.id]
+        smsCalibrations[train.id] || globalCalibrations[train.id]
       );
     });
   }, [
     timeMinutes,
     currentBSTDayInfo,
     smsCalibrations,
+    globalCalibrations,
     tripState?.isActive,
     tripState?.trainId,
     tripState?.userLat,
@@ -467,6 +499,11 @@ export default function App() {
         activeTab={activeTab}
         lang={lang}
         onToggleLang={() => setLang((prev) => (prev === 'bn' ? 'en' : 'bn'))}
+        currentUser={currentUser}
+        onOpenLogin={() => setIsLoginModalOpen(true)}
+        onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
+        onOpenAdminDashboard={() => setIsAdminDashboardModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -890,6 +927,46 @@ export default function App() {
           theme={theme}
         />
       )}
+
+      {/* User Login & Registration Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          if (user.role === 'admin') {
+            setIsAdminDashboardModalOpen(true);
+          }
+        }}
+        theme={theme}
+      />
+
+      {/* Subscription & 3-Day Free Trial Modal */}
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+        currentUser={currentUser}
+        onPaymentSubmitted={() => {
+          if (currentUser) {
+            const users = AuthDB.getUsers();
+            const updated = users.find((u) => u.id === currentUser.id);
+            if (updated) setCurrentUser(updated);
+          }
+        }}
+        theme={theme}
+      />
+
+      {/* Admin Master Control Dashboard */}
+      <AdminDashboardModal
+        isOpen={isAdminDashboardModalOpen}
+        onClose={() => setIsAdminDashboardModalOpen(false)}
+        trainStatuses={trainStatuses}
+        onGlobalTrainCalibrated={handleGlobalTrainCalibrated}
+        theme={theme}
+      />
+
+      {/* Clean Sponsored Ad Banner for Users */}
+      <AdBannerBar theme={theme} />
 
       {/* Sticky Bottom Sponsored Banner */}
       {screenSettings.showAdBanners && (

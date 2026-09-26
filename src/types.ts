@@ -106,6 +106,8 @@ export interface LiveTrainStatus {
   crowdsourcedSpeedKmH?: number;
   isSmsCalibrated?: boolean;
   smsStatusNote?: string;
+  hasGoogleLocationCluster?: boolean;
+  requiresGoogleCluster?: boolean;
 }
 
 export interface ScreenCustomizationSettings {
@@ -113,8 +115,11 @@ export interface ScreenCustomizationSettings {
   showSoloTrainFocus: boolean;         // একক ট্রেন ট্র্যাক মোড (নির্বাচিত ট্রেনের সময় অন্যান্য ট্রেন সম্পূর্ণ লুকান)
   showUserProximityHud: boolean;       // নিকটবর্তী স্টেশন ও লাইভ দূরত্বের HUD
   showUpcomingStopsTimeline: boolean;  // ট্রেনের পরবর্তী স্টপেজ ও শিডিউল তালিকা
-  showCongestionRibbons: boolean;      // ১০০ - ৩০০ মিটার ট্রেন ডিটেকশন ট্রাফিক জ্যাম রিবন
-  jamDetectionRangeMeters: number;     // ১০০ থেকে ৩০০ মিটার (ডিফল্ট ২০০ মিটার)
+  showCongestionRibbons: boolean;      // ৩৫০ - ৫০০ মিটার ট্রেনের দৈর্ঘ্য অনুযায়ী ট্রাফিক রিবন
+  jamDetectionRangeMeters: number;     // ৩৫০ থেকে ৫০০ মিটার (ডিফল্ট ৪০০ মিটার - ১৬ বগির রেক)
+  enable350mRakeRadar: boolean;        // ৩৫০-৫০০ মিটার ট্রেনের আসল দৈর্ঘ্য ভিত্তিক মুভিং ক্লাস্টার রাডার
+  filterHighwayRoadJams: boolean;      // হাইওয়ের ১-২ কিমি যানজট ফিল্টার করে বাতিল করা
+  detectHaltedSignalTrains: boolean;   // সিগন্যালে বা লুপ লাইনে থেমে থাকা ট্রেনের ক্লাস্টার ডিটেকশন
   showLandmarkBadges: boolean;         // আইকনিক সেতু ও জংশন ট্যাগ
   showSpeedometerHud: boolean;         // লাইভ স্পিডোমিটার ও ইঞ্জিন পাওয়ার
   showQuickTicketBtn: boolean;         // ১-ক্লিক দ্রুত টিকিট বুকিং বাটন
@@ -129,8 +134,11 @@ export const DEFAULT_SCREEN_SETTINGS: ScreenCustomizationSettings = {
   showSoloTrainFocus: false,            // সব ট্রেন ট্র্যাকে দৃশ্যমান
   showUserProximityHud: false,          // সেটিংসে অপশনাল
   showUpcomingStopsTimeline: false,     // সেটিংসে অপশনাল
-  showCongestionRibbons: true,          // ১০০-৩০০ মিটার ট্রেন ডিটেকশন জ্যাম রিবন ট্র্যাকে সক্রিয়
-  jamDetectionRangeMeters: 200,         // ২০০ মিটার (১০০মি - ৩০০মি কনফিগারযোগ্য)
+  showCongestionRibbons: true,          // ৩৫০-৫০০ মিটার ট্রেনের দৈর্ঘ্য ট্র্যাকে সক্রিয়
+  jamDetectionRangeMeters: 400,         // ৪০০ মিটার (১৬-১৮ বগির বাস্তব ট্রেনের দৈর্ঘ্য)
+  enable350mRakeRadar: true,            // ৩৫০-৫০০মি ক্লাস্টার রাডার সক্রিয়
+  filterHighwayRoadJams: true,          // হাইওয়ে জ্যাম স্বয়ংক্রিয় বাতিল
+  detectHaltedSignalTrains: true,       // সিগন্যালে থেমে থাকা ট্রেন সনাক্তকরণ
   showLandmarkBadges: true,             // সেতু ও মূল পয়েন্ট
   showSpeedometerHud: false,            // সেটিংসে অপশনাল
   showQuickTicketBtn: true,             // বুকিং বাটন

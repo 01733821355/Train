@@ -1,6 +1,7 @@
 import React from 'react';
-import { Train as TrainIcon, Radio, RotateCcw, Play, Pause, Sun, Moon, Settings, Languages, MessageSquare, DollarSign } from 'lucide-react';
+import { Train as TrainIcon, Radio, RotateCcw, Play, Pause, Sun, Moon, Settings, Languages, MessageSquare, DollarSign, User, ShieldCheck, Crown, LogOut } from 'lucide-react';
 import { Language, translations } from '../utils/i18n';
+import { UserAccount, AuthDB } from '../utils/authDatabase';
 
 interface NavbarProps {
   currentBSTFormatted: string;
@@ -19,6 +20,11 @@ interface NavbarProps {
   activeTab?: string;
   lang?: Language;
   onToggleLang?: () => void;
+  currentUser?: UserAccount | null;
+  onOpenLogin?: () => void;
+  onOpenSubscription?: () => void;
+  onOpenAdminDashboard?: () => void;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,10 +43,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   lang = 'bn',
   onToggleLang,
+  currentUser,
+  onOpenLogin,
+  onOpenSubscription,
+  onOpenAdminDashboard,
+  onLogout,
 }) => {
   const isLight = theme === 'light';
   const safeLang = (lang && translations[lang]) ? lang : 'bn';
   const t = translations[safeLang] || translations.bn;
+  const isAdmin = currentUser?.role === 'admin';
+  const subStatus = currentUser ? AuthDB.checkSubscriptionStatus(currentUser) : null;
 
   return (
     <header
@@ -70,12 +83,66 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Right Actions: Clean, Minimalist & Bilingual */}
+        {/* Right Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* SMS 16318 Tracker Button */}
-          {onOpenSmsTracker && (
+          {/* User / Admin Authentication State */}
+          {!currentUser ? (
             <button
-              onClick={onOpenSmsTracker}
+              onClick={onOpenLogin}
+              className="px-2.5 py-1 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>লগইন</span>
+            </button>
+          ) : isAdmin ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onOpenAdminDashboard}
+                className="px-2.5 py-1 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 shadow-md shadow-indigo-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                title="এডমিন মাস্টার ড্যাশবোর্ড"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">এডমিন কন্ট্রোল</span>
+              </button>
+              <button
+                onClick={onLogout}
+                className="p-1 rounded-lg border border-rose-500/30 text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
+                title="লগআউট"
+              >
+                <LogOut className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onOpenSubscription}
+                className={`px-2 py-1 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                  subStatus?.isPaid
+                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                    : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                }`}
+                title="সাবস্ক্রিপশন ও প্রিমিয়াম পাস"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {subStatus?.isPaid ? 'প্রিমিয়াম' : `${subStatus?.daysRemaining || 3} দিন বাকি`}
+                </span>
+                <span className="text-[10px] opacity-75 sm:hidden">৳৯৯</span>
+              </button>
+              <button
+                onClick={onLogout}
+                className="p-1 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                title="লগআউট"
+              >
+                <LogOut className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {/* SMS 16318 Tracker Button (Only for Admin or allowed) */}
+          {isAdmin && onOpenSmsTracker && (
+            <button
+              onClick={onOpenAdminDashboard}
               className={`px-2 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 isLight
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
@@ -85,22 +152,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span className="hidden sm:inline">১৬৩১৮ এসএমএস</span>
-            </button>
-          )}
-
-          {/* Monetization / Ad Revenue Button */}
-          {onOpenMonetization && (
-            <button
-              onClick={onOpenMonetization}
-              className={`px-2 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                isLight
-                  ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
-                  : 'bg-amber-950/40 border-amber-800 text-amber-300 hover:bg-amber-900/40'
-              }`}
-              title="বিজ্ঞাপন ও রাজস্ব কন্ট্রোল প্যানেল"
-            >
-              <DollarSign className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              <span className="hidden md:inline">বিজ্ঞাপন ও আয়</span>
             </button>
           )}
 
